@@ -1,0 +1,10 @@
+<svg width="980" height="300" viewBox="0 0 980 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="140" cy="140" r="120" stroke="#55DCE0" stroke-width="18"/>
+  <path d="M70 170L140 100L205 165" stroke="#163ED9" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="112" y="170" width="56" height="48" rx="4" stroke="#163ED9" stroke-width="10"/>
+  <line x1="140" y1="170" x2="140" y2="218" stroke="#163ED9" stroke-width="7"/>
+  <line x1="112" y1="194" x2="168" y2="194" stroke="#163ED9" stroke-width="7"/>
+  <text x="275" y="165" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="800" fill="#163ED9">KEUR AYIB</text>
+  <text x="275" y="232" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="700" letter-spacing="4" fill="#55DCE0">IMMOBILIER</text>
+  <text x="275" y="278" font-family="Arial, Helvetica, sans-serif" font-size="50" font-weight="700" letter-spacing="2" fill="#163ED9">Vente - Achat - Location</text>
+</svg>
