@@ -19,15 +19,59 @@
 
 .menu-btn {
   display: none;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 8px;
-  background: #163ed9;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1a4be6 0%, #42b7ff 100%);
   color: #fff;
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: 0 8px 18px rgba(26, 75, 230, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+
+.menu-btn::before {
+  content: '';
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0));
+  transform: translateX(-120%) rotate(10deg);
+  transition: transform 0.55s ease;
+  z-index: -1;
+}
+
+.menu-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.menu-btn:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 12px 22px rgba(26, 75, 230, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  filter: saturate(1.08);
+}
+
+.menu-btn:hover::before {
+  transform: translateX(120%) rotate(10deg);
+}
+
+.menu-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 6px 12px rgba(26, 75, 230, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.menu-btn:focus-visible {
+  outline: 2px solid rgba(66, 183, 255, 0.8);
+  outline-offset: 2px;
 }
 
 .page-title {
@@ -119,6 +163,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    margin-right: 2px;
   }
 
   .menu-btn svg {

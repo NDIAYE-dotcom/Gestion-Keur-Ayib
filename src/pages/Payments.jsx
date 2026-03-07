@@ -3,7 +3,11 @@ import { collection, getDocs, addDoc, deleteDoc, doc, query, limit } from 'fireb
 import { FiPlus, FiTrash2, FiX, FiFileText, FiDownload } from 'react-icons/fi';
 import { db } from '../services/firebase';
 import jsPDF from 'jspdf';
+import logoImage from '/KA.png';
 import './payments.css';
+
+const CONTACT_PHONE = '771762546 / 777026565';
+const CONTACT_EMAIL = 'keurayibImmo@gmail.com';
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -15,6 +19,7 @@ const Payments = () => {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const logoDataUrlRef = useRef(null);
+  const logoSizeRef = useRef({ width: 0, height: 0 });
 
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -28,6 +33,8 @@ const Payments = () => {
 
   useEffect(() => {
     fetchData();
+    // Pré-charger le logo pour les factures
+    getLogoDataUrl().catch(err => console.warn('Erreur pré-chargement logo:', err));
   }, []);
 
   const fetchData = async () => {
@@ -100,17 +107,31 @@ const Payments = () => {
 
   const getLogoDataUrl = () => {
     if (logoDataUrlRef.current) {
+      console.log('Logo déjà en cache');
       return Promise.resolve(logoDataUrlRef.current);
     }
 
     return new Promise((resolve) => {
       const image = new Image();
+      
       image.onload = () => {
+        console.log('Image onload déclenché, dimensions:', image.width, 'x', image.height);
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = image.width;
-          canvas.height = image.height;
-          const context = canvas.getContext('2d');
+          const maxSize = 500; // Limiter la taille pour éviter les problèmes de mémoire
+          let width = image.naturalWidth || image.width;
+          let height = image.naturalHeight || image.height;
+          
+          // Redimensionner si trop grand
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = width * ratio;
+            height = height * ratio;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
 
           if (!context) {
             console.warn('Canvas context non disponible');
@@ -118,21 +139,26 @@ const Payments = () => {
             return;
           }
 
-          context.drawImage(image, 0, 0);
+          context.drawImage(image, 0, 0, width, height);
           const dataUrl = canvas.toDataURL('image/png');
           logoDataUrlRef.current = dataUrl;
+          logoSizeRef.current = { width, height };
+          console.log('✅ Logo chargé avec succès, longueur:', dataUrl.length);
           resolve(dataUrl);
         } catch (error) {
-          console.error('Erreur conversion logo:', error);
+          console.error('❌ Erreur conversion logo:', error);
           resolve(null);
         }
       };
+      
       image.onerror = (error) => {
-        console.error('Erreur chargement logo:', error);
+        console.error('❌ Erreur chargement logo:', error, 'Source:', logoImage);
         resolve(null);
       };
-      // Charger depuis le dossier public
-      image.src = '/KA.png';
+      
+      // Utiliser l'import direct
+      console.log('Chargement du logo depuis:', logoImage);
+      image.src = logoImage;
     });
   };
 
@@ -150,28 +176,58 @@ const Payments = () => {
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, 210, 297, 'F');
 
-      // Logo
+      // Logo et en-tête gauche
+      let hasLogo = false;
+      let logoRightX = 20;
       try {
         const logoDataUrl = await getLogoDataUrl();
+        console.log('Logo chargé pour PDF:', logoDataUrl ? 'OK' : 'FAIL');
         if (logoDataUrl && logoDataUrl.startsWith('data:image')) {
-          pdf.addImage(logoDataUrl, 'PNG', 20, 15, 20, 20);
+          const rawWidth = logoSizeRef.current.width || 1;
+          const rawHeight = logoSizeRef.current.height || 1;
+          const maxLogoWidth = 52;
+          const maxLogoHeight = 30;
+          const scale = Math.min(maxLogoWidth / rawWidth, maxLogoHeight / rawHeight);
+          const drawWidth = rawWidth * scale;
+          const drawHeight = rawHeight * scale;
+          const logoX = 20;
+          const logoY = 15 + (maxLogoHeight - drawHeight) / 2;
+
+          // Conserver le ratio pour eviter l'effet "pilier"
+          pdf.addImage(logoDataUrl, 'PNG', logoX, logoY, drawWidth, drawHeight);
+          logoRightX = logoX + drawWidth;
+          hasLogo = true;
+          console.log('Logo ajouté au PDF');
         }
       } catch (logoError) {
         console.warn('Logo non chargé dans le PDF:', logoError);
       }
 
-      // En-tête gauche
-      pdf.setTextColor(37, 99, 235);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(18);
-      pdf.text('Keur Ayib', 42, 26);
-
-      pdf.setTextColor(75, 85, 99);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      pdf.text('Immobilier', 42, 33);
-      pdf.text('Dakar, Sénégal', 42, 39);
-      pdf.text('Tél: +221 33 XXX XX XX', 42, 45);
+      // En-tête gauche - texte seulement si pas de logo
+      if (!hasLogo) {
+        pdf.setTextColor(37, 99, 235);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(18);
+        pdf.text('Keur Ayib', 20, 26);
+        
+        pdf.setTextColor(75, 85, 99);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        pdf.text('Immobilier', 20, 33);
+        pdf.text('Dakar, Sénégal', 20, 39);
+        pdf.text(`Tél: ${CONTACT_PHONE}`, 20, 45);
+        pdf.text(`Email: ${CONTACT_EMAIL}`, 20, 51);
+      } else {
+        // Si logo présent, afficher les infos à côté du logo
+        pdf.setTextColor(75, 85, 99);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        const infoX = logoRightX + 5;
+        pdf.text('Immobilier', infoX, 26);
+        pdf.text('Dakar, Sénégal', infoX, 32);
+        pdf.text(`Tél: ${CONTACT_PHONE}`, infoX, 38);
+        pdf.text(`Email: ${CONTACT_EMAIL}`, infoX, 44);
+      }
 
       // En-tête droite - FACTURE
       pdf.setTextColor(30, 58, 138);
@@ -273,7 +329,8 @@ const Payments = () => {
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(10);
       pdf.text('Cette facture est générée électroniquement et ne nécessite pas de signature.', 105, 216, { align: 'center' });
-      pdf.text('En cas de besoin, contactez-nous au +221 33 XXX XX XX', 105, 224, { align: 'center' });
+      pdf.text(`Contact: ${CONTACT_PHONE}`, 105, 224, { align: 'center' });
+      pdf.text(`Email: ${CONTACT_EMAIL}`, 105, 231, { align: 'center' });
 
       // Notes
       if (payment.notes) {
@@ -647,7 +704,8 @@ const Payments = () => {
                   <h2>Keur Ayib</h2>
                   <p>Immobilier</p>
                   <p>Dakar, Sénégal</p>
-                  <p>Tél: +221 33 XXX XX XX</p>
+                  <p>Tél: {CONTACT_PHONE}</p>
+                  <p>Email: {CONTACT_EMAIL}</p>
                   </div>
                 </div>
                 <div className="invoice-title-block">
@@ -685,7 +743,8 @@ const Payments = () => {
 
               <div className="invoice-thanks">Merci pour votre confiance !</div>
               <p className="invoice-note">Cette facture est générée électroniquement et ne nécessite pas de signature.</p>
-              <p className="invoice-note">En cas de besoin, contactez-nous au +221 33 XXX XX XX</p>
+              <p className="invoice-note">Contact: {CONTACT_PHONE}</p>
+              <p className="invoice-note">Email: {CONTACT_EMAIL}</p>
             </div>
           </div>
         </div>

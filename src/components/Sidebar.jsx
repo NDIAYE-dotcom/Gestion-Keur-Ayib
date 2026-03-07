@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FiBarChart2, FiHome, FiUsers, FiDollarSign, FiCalendar, FiMenu, FiX } from 'react-icons/fi';
+import { FiBarChart2, FiHome, FiUsers, FiDollarSign, FiCalendar, FiMenu, FiX, FiPackage } from 'react-icons/fi';
 import './sidebar.css';
 
 const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
@@ -12,6 +12,7 @@ const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
     { path: '/clients', icon: <FiUsers />, label: 'Clients' },
     { path: '/payments', icon: <FiDollarSign />, label: 'Paiements' },
     { path: '/agenda', icon: <FiCalendar />, label: 'Agenda' },
+    { path: '/inventory', icon: <FiPackage />, label: 'Inventaire' },
   ];
 
   const handleItemClick = () => {
@@ -45,12 +46,13 @@ const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
       </div>
 
       <nav className="sidebar-nav">
-        {menuItems.map((item) => (
+        {menuItems.map((item, index) => (
           <Link
             key={item.path}
             to={item.path}
             className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
             onClick={handleItemClick}
+            style={{ '--item-index': index }}
           >
             <span className="nav-icon">{item.icon}</span>
             {!collapsed && <span className="nav-label">{item.label}</span>}

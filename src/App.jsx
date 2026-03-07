@@ -11,6 +11,7 @@ import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Properties from './pages/Properties';
+import Inventory from './pages/Inventory';
 import Clients from './pages/Clients';
 import Payments from './pages/Payments';
 import Agenda from './pages/Agenda';
@@ -120,6 +121,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Properties />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/inventory"
+          element={
+            <ProtectedRoute>
+              <Inventory />
             </ProtectedRoute>
           }
         />

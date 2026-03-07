@@ -6,9 +6,31 @@
   width: 250px;
   background: linear-gradient(180deg, #163ed9 0%, #0f2fb0 100%);
   color: white;
-  transition: width 0.3s ease;
+  transition: width 0.32s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 1000;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 8px 0 30px rgba(5, 23, 92, 0.28);
+  overflow: hidden;
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
+  inset: -120px -70px auto;
+  height: 240px;
+  background: radial-gradient(circle, rgba(115, 211, 255, 0.3) 0%, rgba(115, 211, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  right: -100px;
+  bottom: -120px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(85, 220, 224, 0.24) 0%, rgba(85, 220, 224, 0) 75%);
+  pointer-events: none;
 }
 
 .sidebar.collapsed {
@@ -16,6 +38,8 @@
 }
 
 .sidebar-header {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -54,37 +78,61 @@
   font-size: 20px;
   cursor: pointer;
   padding: 5px;
-  transition: transform 0.3s;
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 .toggle-btn:hover {
-  transform: scale(1.1);
+  transform: scale(1.08) rotate(8deg);
 }
 
 .sidebar-nav {
+  position: relative;
+  z-index: 1;
   padding: 20px 0;
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 15px 20px;
+  padding: 14px 20px;
   color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all 0.3s;
+  transition: transform 0.28s ease, background-color 0.28s ease, color 0.28s ease, box-shadow 0.28s ease;
   border-left: 3px solid transparent;
+  transform: translateX(-12px);
+  opacity: 0;
+  animation: navItemEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--item-index) * 65ms + 70ms);
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+  transition: width 0.28s ease;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.11);
   color: white;
+  transform: translateX(4px);
+}
+
+.nav-item:hover::before {
+  width: 100%;
 }
 
 .nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
   color: white;
   border-left-color: #55dce0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .nav-icon {
@@ -98,6 +146,7 @@
   font-size: 18px;
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
+  transition: transform 0.28s ease, box-shadow 0.28s ease, background-color 0.28s ease;
 }
 
 .nav-item:nth-child(1) .nav-icon { background: rgba(147, 197, 253, 0.28); }
@@ -105,10 +154,21 @@
 .nav-item:nth-child(3) .nav-icon { background: rgba(221, 214, 254, 0.28); }
 .nav-item:nth-child(4) .nav-icon { background: rgba(254, 215, 170, 0.28); }
 .nav-item:nth-child(5) .nav-icon { background: rgba(165, 243, 252, 0.28); }
+.nav-item:nth-child(6) .nav-icon { background: rgba(186, 230, 253, 0.28); }
+
+.nav-item:hover .nav-icon {
+  transform: translateY(-1px) scale(1.06);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.nav-item.active .nav-icon {
+  box-shadow: 0 0 0 2px rgba(85, 220, 224, 0.34), 0 6px 14px rgba(0, 0, 0, 0.2);
+}
 
 .nav-label {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.1px;
   white-space: nowrap;
 }
 
@@ -125,11 +185,16 @@
   .sidebar {
     transform: translateX(-100%);
     width: 250px;
-    transition: transform 0.3s ease;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .sidebar.active {
     transform: translateX(0);
+  }
+
+  .sidebar.active .nav-item {
+    animation: navItemEnterMobile 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(var(--item-index) * 70ms + 120ms);
   }
 
   .toggle-btn {
@@ -138,5 +203,42 @@
 
   .sidebar.collapsed {
     width: 250px;
+  }
+}
+
+@keyframes navItemEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes navItemEnterMobile {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-item,
+  .nav-icon,
+  .toggle-btn {
+    transition: none;
+    animation: none;
+  }
+
+  .nav-item {
+    opacity: 1;
+    transform: none;
   }
 }
