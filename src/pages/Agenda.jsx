@@ -4,6 +4,9 @@ import { FiPlus, FiCalendar, FiClock, FiHome, FiUser, FiFileText, FiX, FiTrash2,
 import { db, auth } from '../services/firebase';
 import './agenda.css';
 
+const AGENDA_CACHE_KEY = 'keurAyib_agenda_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const Agenda = () => {
   const [appointments, setAppointments] = useState([]);
   const [properties, setProperties] = useState([]);
@@ -22,12 +25,54 @@ const Agenda = () => {
   });
 
   useEffect(() => {
-    fetchData();
+    fetchData({ preferCache: true });
   }, []);
 
-  const fetchData = async () => {
+  // 📦 Cache helpers
+  const readCache = () => {
     try {
-      setLoading(true);
+      const cached = localStorage.getItem(AGENDA_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(AGENDA_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(AGENDA_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
+  const fetchData = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setAppointments(cached.appointments);
+        setProperties(cached.properties);
+        setClients(cached.clients);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
+    try {
+      if (!usedCache) {
+        setLoading(true);
+      }
 
       // ✅ RAPIDE: Sans orderBy pour eviter les index
       const [appointmentsSnapshot, propertiesSnapshot, clientsSnapshot] = await Promise.all([
@@ -54,9 +99,18 @@ const Agenda = () => {
       }));
       setClients(clientsData);
 
+      // 💾 Mettre en cache toutes les données de l'agenda
+      writeCache({
+        appointments: appointmentsData,
+        properties: propertiesData,
+        clients: clientsData
+      });
+
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      alert('Erreur lors du chargement des données');
+      if (!usedCache) {
+        alert('Erreur lors du chargement des données');
+      }
     } finally {
       setLoading(false);
     }

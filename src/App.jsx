@@ -15,6 +15,7 @@ import Inventory from './pages/Inventory';
 import Clients from './pages/Clients';
 import Payments from './pages/Payments';
 import Agenda from './pages/Agenda';
+import Contracts from './pages/Contracts';
 
 import './App.css';
 
@@ -157,6 +158,15 @@ function App() {
           element={
             <ProtectedRoute>
               <Agenda />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/contracts"
+          element={
+            <ProtectedRoute>
+              <Contracts />
             </ProtectedRoute>
           }
         />

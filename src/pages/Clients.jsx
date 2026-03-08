@@ -4,6 +4,9 @@ import { FiPlus, FiSearch, FiUser, FiEdit2, FiTrash2, FiX } from 'react-icons/fi
 import { db } from '../services/firebase';
 import './clients.css';
 
+const CLIENTS_CACHE_KEY = 'keurAyib_clients_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const Clients = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,12 +23,52 @@ const Clients = () => {
   });
 
   useEffect(() => {
-    fetchClients();
+    fetchClients({ preferCache: true });
   }, []);
 
-  const fetchClients = async () => {
+  // 📦 Cache helpers
+  const readCache = () => {
     try {
-      setLoading(true);
+      const cached = localStorage.getItem(CLIENTS_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(CLIENTS_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(CLIENTS_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
+  const fetchClients = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setClients(cached);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
+    try {
+      if (!usedCache) {
+        setLoading(true);
+      }
       // ✅ RAPIDE : Sans orderBy pour eviter les index
       const querySnapshot = await getDocs(
         query(collection(db, 'clients'), limit(50))
@@ -35,9 +78,12 @@ const Clients = () => {
         ...doc.data()
       }));
       setClients(clientsData);
+      writeCache(clientsData);
     } catch (error) {
       console.error('Erreur lors du chargement des clients:', error);
-      alert('Erreur lors du chargement des clients');
+      if (!usedCache) {
+        alert('Erreur lors du chargement des clients');
+      }
     } finally {
       setLoading(false);
     }

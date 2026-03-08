@@ -5,6 +5,9 @@ import { MdOutlineApartment } from 'react-icons/md';
 import { db } from '../services/firebase';
 import './dashboard.css';
 
+const DASHBOARD_CACHE_KEY = 'keurAyib_dashboard_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalProperties: 0,
@@ -20,17 +23,59 @@ const Dashboard = () => {
   const [recentClients, setRecentClients] = useState([]);
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData({ preferCache: true });
   }, []);
 
-  const fetchDashboardData = async () => {
+  // 📦 Cache helpers
+  const readCache = () => {
+    try {
+      const cached = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(DASHBOARD_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
+  const fetchDashboardData = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setStats(cached.stats);
+        setRecentProperties(cached.recentProperties);
+        setRecentClients(cached.recentClients);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
     // Timeout de 10 secondes
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout')), 10000)
     );
 
     try {
-      setLoading(true);
+      if (!usedCache) {
+        setLoading(true);
+      }
 
       // ✅ ULTRA RAPIDE : Requêtes sans orderBy (pas besoin d'index)
       const dataPromise = Promise.all([
@@ -93,10 +138,29 @@ const Dashboard = () => {
       ).slice(0, 5);
       setRecentClients(sortedClients);
 
+      // 💾 Mettre en cache toutes les données du dashboard
+      const dashboardData = {
+        stats: {
+          totalProperties: properties.length,
+          propertiesForRent: forRent,
+          propertiesForSale: forSale,
+          totalClients: clients.length,
+          monthlyRevenue: monthlyRevenue,
+          pendingPayments: pendingPayments,
+          upcomingAppointments: upcomingAppointments,
+        },
+        recentProperties: sortedProperties,
+        recentClients: sortedClients
+      };
+      writeCache(dashboardData);
+
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
       if (error.message === 'Timeout') {
         alert('⚠️ Connexion lente détectée. Votre base de données Firestore est peut-être vide ou les collections n\'existent pas encore.\n\nL\'application va s\'afficher avec des données vides.');
+      } else if (!usedCache) {
+        // Seulement afficher l'alert si le cache n'a pas été utilisé
+        alert('Erreur lors du chargement des données');
       }
       // Initialiser avec des données vides pour que l'interface s'affiche
       setStats({

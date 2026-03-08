@@ -8,6 +8,9 @@ import './payments.css';
 
 const CONTACT_PHONE = '771762546 / 777026565';
 const CONTACT_EMAIL = 'keurayibImmo@gmail.com';
+const ENTRY_PAYMENT_TYPE = 'entree-location';
+const PAYMENTS_CACHE_KEY = 'keurAyib_payments_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -31,15 +34,72 @@ const Payments = () => {
     notes: '',
   });
 
+  const selectedProperty = properties.find((property) => property.id === formData.propertyId);
+  const selectedPropertyPrice = Number(selectedProperty?.prix || 0);
+  const isEntryPayment = formData.typePaiement === ENTRY_PAYMENT_TYPE;
+  const entryTotalAmount = selectedPropertyPrice * 3;
+
+  const readCache = () => {
+    try {
+      const cached = localStorage.getItem(PAYMENTS_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(PAYMENTS_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(PAYMENTS_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
   useEffect(() => {
-    fetchData();
+    fetchData({ preferCache: true });
     // Pré-charger le logo pour les factures
     getLogoDataUrl().catch(err => console.warn('Erreur pré-chargement logo:', err));
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    if (!isEntryPayment) {
+      return;
+    }
+
+    const totalAsString = entryTotalAmount ? String(entryTotalAmount) : '';
+    setFormData((prev) => (
+      prev.montant === totalAsString ? prev : { ...prev, montant: totalAsString }
+    ));
+  }, [isEntryPayment, entryTotalAmount]);
+
+  const fetchData = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setPayments(cached.payments || []);
+        setProperties(cached.properties || []);
+        setClients(cached.clients || []);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
     try {
-      setLoading(true);
+      if (!usedCache) {
+        setLoading(true);
+      }
 
       // ✅ RAPIDE: Sans orderBy pour eviter les index
       const [paymentsSnapshot, propertiesSnapshot, clientsSnapshot] = await Promise.all([
@@ -66,9 +126,17 @@ const Payments = () => {
       }));
       setClients(clientsData);
 
+      writeCache({
+        payments: paymentsData,
+        properties: propertiesData,
+        clients: clientsData,
+      });
+
     } catch (error) {
       console.error('Erreur lors du chargement des données:', error);
-      alert('Erreur lors du chargement des données');
+      if (!usedCache) {
+        alert('Erreur lors du chargement des données');
+      }
     } finally {
       setLoading(false);
     }
@@ -78,9 +146,31 @@ const Payments = () => {
     e.preventDefault();
 
     try {
+      const isEntryType = formData.typePaiement === ENTRY_PAYMENT_TYPE;
+      const baseAmount = Number(selectedPropertyPrice || 0);
+      const advanceAmount = isEntryType ? baseAmount : 0;
+      const cautionAmount = isEntryType ? baseAmount : 0;
+      const commissionAmount = isEntryType ? baseAmount : 0;
+      const totalAmount = isEntryType
+        ? advanceAmount + cautionAmount + commissionAmount
+        : Number(formData.montant);
+
+      const entryDetails = isEntryType ? {
+        avance: advanceAmount,
+        caution: cautionAmount,
+        commission: commissionAmount,
+        total: totalAmount,
+      } : null;
+
+      const autoEntryNote = isEntryType
+        ? `Entrée location: Avance ${formatInvoiceAmount(advanceAmount)}, Caution ${formatInvoiceAmount(cautionAmount)}, Commission ${formatInvoiceAmount(commissionAmount)}.`
+        : '';
+
       await addDoc(collection(db, 'payments'), {
         ...formData,
-        montant: Number(formData.montant),
+        montant: totalAmount,
+        detailsPaiement: entryDetails,
+        notes: [autoEntryNote, formData.notes].filter(Boolean).join(' '),
         datePaiement: new Date(),
       });
       alert('Paiement enregistré avec succès');
@@ -214,7 +304,7 @@ const Payments = () => {
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
         pdf.text('Immobilier', 20, 33);
-        pdf.text('Dakar, Sénégal', 20, 39);
+        pdf.text('Keur Ayib, Sénégal', 20, 39);
         pdf.text(`Tél: ${CONTACT_PHONE}`, 20, 45);
         pdf.text(`Email: ${CONTACT_EMAIL}`, 20, 51);
       } else {
@@ -224,7 +314,7 @@ const Payments = () => {
         pdf.setFontSize(10);
         const infoX = logoRightX + 5;
         pdf.text('Immobilier', infoX, 26);
-        pdf.text('Dakar, Sénégal', infoX, 32);
+        pdf.text('Keur Ayib, Sénégal', infoX, 32);
         pdf.text(`Tél: ${CONTACT_PHONE}`, infoX, 38);
         pdf.text(`Email: ${CONTACT_EMAIL}`, infoX, 44);
       }
@@ -335,9 +425,22 @@ const Payments = () => {
       // Notes
       if (payment.notes) {
         const splitNotes = pdf.splitTextToSize(`Notes: ${payment.notes}`, 165);
-        pdf.setTextColor(75, 85, 99);
-        pdf.setFontSize(9);
-        pdf.text(splitNotes, 20, 250);
+        const notesHeight = splitNotes.length * 4; // ~4 unités par ligne
+        const notesStartY = 242;
+        
+        // Si les notes dépassent la page (A4 = 297mm), ajouter une nouvelle page
+        if (notesStartY + notesHeight > 285) {
+          pdf.addPage();
+          pdf.setTextColor(75, 85, 99);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(9);
+          pdf.text(splitNotes, 20, 20);
+        } else {
+          pdf.setTextColor(75, 85, 99);
+          pdf.setFont('helvetica', 'normal');
+          pdf.setFontSize(9);
+          pdf.text(splitNotes, 20, notesStartY);
+        }
       }
 
       const fileName = `Facture_${invoiceNumber}_${client?.nom || 'Client'}.pdf`;
@@ -411,6 +514,13 @@ const Payments = () => {
     return `INV-${paymentId.substring(0, 6).toUpperCase()}-${new Date().getFullYear().toString().slice(-2)}`;
   };
 
+  const getPaymentTypeLabel = (type) => {
+    if (type === ENTRY_PAYMENT_TYPE) {
+      return 'Entrée location';
+    }
+    return type;
+  };
+
   const formatInvoiceAmount = (amount) => {
     const value = Number(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
     return `${value} FCFA`;
@@ -478,6 +588,7 @@ const Payments = () => {
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="filter-select">
           <option value="all">Tous les types</option>
           <option value="loyer">Loyer</option>
+          <option value={ENTRY_PAYMENT_TYPE}>Entrée location</option>
           <option value="vente">Vente</option>
           <option value="caution">Caution</option>
           <option value="autre">Autre</option>
@@ -514,7 +625,7 @@ const Payments = () => {
                   <td data-label="Client">{getClientName(payment.clientId)}</td>
                   <td data-label="Type">
                     <span className={`type-badge ${payment.typePaiement}`}>
-                      {payment.typePaiement}
+                      {getPaymentTypeLabel(payment.typePaiement)}
                     </span>
                   </td>
                   <td data-label="Montant" className="amount">{formatCurrency(payment.montant)}</td>
@@ -602,8 +713,14 @@ const Payments = () => {
                     type="number"
                     value={formData.montant}
                     onChange={(e) => setFormData({...formData, montant: e.target.value})}
+                    readOnly={isEntryPayment}
                     required
                   />
+                  {isEntryPayment && (
+                    <small className="payment-hint">
+                      Montant calculé automatiquement: 3 mois ({formatCurrency(selectedPropertyPrice)} x 3)
+                    </small>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -614,12 +731,37 @@ const Payments = () => {
                     required
                   >
                     <option value="loyer">Loyer</option>
+                    <option value={ENTRY_PAYMENT_TYPE}>Entrée location (3 mois)</option>
                     <option value="vente">Vente</option>
                     <option value="caution">Caution</option>
                     <option value="autre">Autre</option>
                   </select>
                 </div>
               </div>
+
+              {isEntryPayment && (
+                <div className="entry-breakdown-card">
+                  <p className="entry-breakdown-title">Détail entrée location</p>
+                  <div className="entry-breakdown-grid">
+                    <div>
+                      <span>Avance</span>
+                      <strong>{formatCurrency(selectedPropertyPrice)}</strong>
+                    </div>
+                    <div>
+                      <span>Caution</span>
+                      <strong>{formatCurrency(selectedPropertyPrice)}</strong>
+                    </div>
+                    <div>
+                      <span>Commission</span>
+                      <strong>{formatCurrency(selectedPropertyPrice)}</strong>
+                    </div>
+                    <div className="entry-breakdown-total">
+                      <span>Total à verser</span>
+                      <strong>{formatCurrency(entryTotalAmount)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="form-row">
                 <div className="form-group">
@@ -703,7 +845,7 @@ const Payments = () => {
                   <div>
                   <h2>Keur Ayib</h2>
                   <p>Immobilier</p>
-                  <p>Dakar, Sénégal</p>
+                  <p>Keur Ayib, Sénégal</p>
                   <p>Tél: {CONTACT_PHONE}</p>
                   <p>Email: {CONTACT_EMAIL}</p>
                   </div>
@@ -726,12 +868,39 @@ const Payments = () => {
                   <span>TOTAL</span>
                 </div>
                 <div className="invoice-table-row">
-                  <span>{getPropertyTitle(previewPayment.propertyId)}</span>
+                  <span>
+                    {getPropertyTitle(previewPayment.propertyId)}
+                    {previewPayment.typePaiement === ENTRY_PAYMENT_TYPE && ' (Entrée location)'}
+                  </span>
                   <span>1</span>
                   <span>{formatInvoiceAmount(previewPayment.montant)}</span>
                   <strong>{formatInvoiceAmount(previewPayment.montant)}</strong>
                 </div>
               </div>
+
+              {previewPayment.detailsPaiement && (
+                <div className="entry-breakdown-card invoice-breakdown">
+                  <p className="entry-breakdown-title">Répartition du paiement</p>
+                  <div className="entry-breakdown-grid">
+                    <div>
+                      <span>Avance</span>
+                      <strong>{formatInvoiceAmount(previewPayment.detailsPaiement.avance)}</strong>
+                    </div>
+                    <div>
+                      <span>Caution</span>
+                      <strong>{formatInvoiceAmount(previewPayment.detailsPaiement.caution)}</strong>
+                    </div>
+                    <div>
+                      <span>Commission</span>
+                      <strong>{formatInvoiceAmount(previewPayment.detailsPaiement.commission)}</strong>
+                    </div>
+                    <div className="entry-breakdown-total">
+                      <span>Total</span>
+                      <strong>{formatInvoiceAmount(previewPayment.detailsPaiement.total)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="invoice-totals-box">
                 <div><span>Sous-total:</span><strong>{formatInvoiceAmount(previewPayment.montant)}</strong></div>

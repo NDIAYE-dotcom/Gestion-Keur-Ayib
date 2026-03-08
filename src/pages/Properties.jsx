@@ -7,6 +7,9 @@ import { LuBedDouble, LuBath } from 'react-icons/lu';
 import { db, storage, auth } from '../services/firebase';
 import './properties.css';
 
+const PROPERTIES_CACHE_KEY = 'keurAyib_properties_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const Properties = () => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,12 +37,52 @@ const Properties = () => {
   const [uploadStatus, setUploadStatus] = useState('');
 
   useEffect(() => {
-    fetchProperties();
+    fetchProperties({ preferCache: true });
   }, []);
 
-  const fetchProperties = async () => {
+  // 📦 Cache helpers
+  const readCache = () => {
     try {
-      setLoading(true);
+      const cached = localStorage.getItem(PROPERTIES_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(PROPERTIES_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(PROPERTIES_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
+  const fetchProperties = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setProperties(cached);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
+    try {
+      if (!usedCache) {
+        setLoading(true);
+      }
       // ✅ RAPIDE : Sans orderBy pour eviter les index
       const querySnapshot = await getDocs(
         query(collection(db, 'properties'), limit(50))
@@ -49,9 +92,12 @@ const Properties = () => {
         ...doc.data()
       }));
       setProperties(propertiesData);
+      writeCache(propertiesData);
     } catch (error) {
       console.error('Erreur lors du chargement des biens:', error);
-      alert('Erreur lors du chargement des biens');
+      if (!usedCache) {
+        alert('Erreur lors du chargement des biens');
+      }
     } finally {
       setLoading(false);
     }

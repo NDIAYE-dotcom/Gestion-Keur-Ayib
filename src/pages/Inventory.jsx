@@ -4,6 +4,9 @@ import { FiRefreshCw, FiSearch, FiPackage, FiHome, FiTag, FiDollarSign } from 'r
 import { db } from '../services/firebase';
 import './inventory.css';
 
+const INVENTORY_CACHE_KEY = 'keurAyib_inventory_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const Inventory = () => {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,22 +14,65 @@ const Inventory = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('monthly');
 
-  const fetchInventory = async () => {
+  // 📦 Cache helpers
+  const readCache = () => {
     try {
-      setLoading(true);
+      const cached = localStorage.getItem(INVENTORY_CACHE_KEY);
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+        localStorage.removeItem(INVENTORY_CACHE_KEY);
+        return null;
+      }
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCache = (data) => {
+    try {
+      localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
+  };
+
+  const fetchInventory = async ({ preferCache = false } = {}) => {
+    let usedCache = false;
+
+    if (preferCache) {
+      const cached = readCache();
+      if (cached) {
+        setProperties(cached);
+        setLoading(false);
+        usedCache = true;
+      }
+    }
+
+    try {
+      if (!usedCache) {
+        setLoading(true);
+      }
       const snapshot = await getDocs(query(collection(db, 'properties'), limit(200)));
       const data = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       setProperties(data);
+      writeCache(data);
     } catch (error) {
       console.error('Erreur chargement inventaire:', error);
-      alert('Impossible de charger l\'inventaire pour le moment.');
+      if (!usedCache) {
+        alert('Impossible de charger l\'inventaire pour le moment.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchInventory();
+    fetchInventory({ preferCache: true });
   }, []);
 
   const getPropertyDate = (item) => {
