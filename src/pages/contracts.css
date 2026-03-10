@@ -436,6 +436,20 @@
   border-bottom: 1px solid #94a3b8;
 }
 
+.contracts-page .sheet-stamp-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 8px;
+}
+
+.contracts-page .sheet-stamp {
+  width: min(180px, 42vw);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 @media (max-width: 960px) {
   .contracts-page .contract-layout {
     grid-template-columns: 1fr;
@@ -449,6 +463,10 @@
   .contracts-page .sheet-entry-grid,
   .contracts-page .sheet-signatures {
     grid-template-columns: 1fr;
+  }
+
+  .contracts-page .sheet-stamp-wrap {
+    justify-content: center;
   }
 }
 

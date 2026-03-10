@@ -4,6 +4,7 @@ import { FiFileText, FiRefreshCw, FiSave, FiDownload, FiUser, FiHome, FiCalendar
 import jsPDF from 'jspdf';
 import { db } from '../services/firebase';
 import logoImage from '/KA.png';
+import stampImage from '/Cahet KA-01.png';
 import './contracts.css';
 
 const ENTRY_MONTHS = 3;
@@ -20,6 +21,8 @@ const Contracts = () => {
   const [contractText, setContractText] = useState('');
   const logoDataUrlRef = useRef(null);
   const logoSizeRef = useRef({ width: 0, height: 0 });
+  const stampDataUrlRef = useRef(null);
+  const stampSizeRef = useRef({ width: 0, height: 0 });
 
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -59,6 +62,7 @@ const Contracts = () => {
   useEffect(() => {
     fetchData({ preferCache: true });
     getLogoDataUrl().catch((error) => console.warn('Erreur pre-chargement logo contrat:', error));
+    getStampDataUrl().catch((error) => console.warn('Erreur pre-chargement cachet contrat:', error));
   }, []);
 
   const getLogoDataUrl = () => {
@@ -102,6 +106,50 @@ const Contracts = () => {
 
       image.onerror = () => resolve(null);
       image.src = logoImage;
+    });
+  };
+
+  const getStampDataUrl = () => {
+    if (stampDataUrlRef.current) {
+      return Promise.resolve(stampDataUrlRef.current);
+    }
+
+    return new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxSize = 500;
+          let width = image.naturalWidth || image.width;
+          let height = image.naturalHeight || image.height;
+
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width *= ratio;
+            height *= ratio;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          if (!context) {
+            resolve(null);
+            return;
+          }
+
+          context.drawImage(image, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/png');
+          stampDataUrlRef.current = dataUrl;
+          stampSizeRef.current = { width, height };
+          resolve(dataUrl);
+        } catch (error) {
+          console.error('Erreur conversion cachet:', error);
+          resolve(null);
+        }
+      };
+
+      image.onerror = () => resolve(null);
+      image.src = stampImage;
     });
   };
 
@@ -172,6 +220,13 @@ const Contracts = () => {
       currency: 'XOF',
       minimumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Formatage safe pour jsPDF (pas de caracteres Unicode speciaux)
+  const formatCurrencyPdf = (amount) => {
+    const num = Math.round(Number(amount) || 0);
+    const formatted = num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return `${formatted} FCFA`;
   };
 
   const toLongDate = (dateValue) => {
@@ -280,6 +335,7 @@ const Contracts = () => {
     const blue = [30, 64, 175];
     const dark = [17, 24, 39];
     const muted = [75, 85, 99];
+    const pageHeight = pdf.internal.pageSize.getHeight();
 
     let y = 20;
     const pageBottom = 282;
@@ -368,7 +424,7 @@ const Contracts = () => {
     drawParagraph(`La location est conclue pour une duree de ${formData.dureeMois} mois, a compter du ${toLongDate(formData.dateDebut)}.`);
 
     drawSectionTitle('ARTICLE 2 - LOYER MENSUEL');
-    drawParagraph(`Le loyer mensuel est fixe a ${formatCurrency(monthlyRent)}.`);
+    drawParagraph(`Le loyer mensuel est fixe a ${formatCurrencyPdf(monthlyRent)}.`);
     drawParagraph('Paiement exigible au plus tard le 05 de chaque mois.');
 
     drawSectionTitle(`ARTICLE 3 - PAIEMENT D'ENTREE OBLIGATOIRE (${ENTRY_MONTHS} MOIS)`);
@@ -378,10 +434,10 @@ const Contracts = () => {
     pdf.setDrawColor(191, 219, 254);
     pdf.roundedRect(20, y, 170, 38, 2, 2, 'S');
     y += 7;
-    drawParagraph(`Total a verser a la signature: ${formatCurrency(entryTotal)}`, 25, 155);
-    drawParagraph(`- Avance: ${formatCurrency(entryAdvance)}`, 25, 155);
-    drawParagraph(`- Caution: ${formatCurrency(entryCaution)}`, 25, 155);
-    drawParagraph(`- Commission: ${formatCurrency(entryCommission)}`, 25, 155);
+    drawParagraph(`Total a verser a la signature: ${formatCurrencyPdf(entryTotal)}`, 25, 155);
+    drawParagraph(`- Avance: ${formatCurrencyPdf(entryAdvance)}`, 25, 155);
+    drawParagraph(`- Caution: ${formatCurrencyPdf(entryCaution)}`, 25, 155);
+    drawParagraph(`- Commission: ${formatCurrencyPdf(entryCommission)}`, 25, 155);
 
     drawSectionTitle('ARTICLE 4 - OBLIGATIONS DU LOCATAIRE');
     drawParagraph('Le locataire s engage a utiliser le bien en bon pere de famille, a regler les charges locatives et a respecter le reglement interieur.');
@@ -405,6 +461,21 @@ const Contracts = () => {
     pdf.setDrawColor(148, 163, 184);
     pdf.line(20, y + 8, 90, y + 8);
     pdf.line(120, y + 8, 190, y + 8);
+    y += 18; // juste en dessous des lignes de signature
+
+    const stampDataUrl = await getStampDataUrl();
+    if (stampDataUrl && stampDataUrl.startsWith('data:image')) {
+      const rawWidth = stampSizeRef.current.width || 1;
+      const rawHeight = stampSizeRef.current.height || 1;
+      const maxStampWidth = 58;
+      const maxStampHeight = 40;
+      const scale = Math.min(maxStampWidth / rawWidth, maxStampHeight / rawHeight);
+      const drawWidth = rawWidth * scale;
+      const drawHeight = rawHeight * scale;
+
+      ensureSpace(drawHeight + 5);
+      pdf.addImage(stampDataUrl, 'PNG', 190 - drawWidth, y, drawWidth, drawHeight);
+    }
 
     const fileName = `Contrat_${selectedClient?.nom || 'Client'}_${selectedProperty?.titre || 'Bien'}`
       .replace(/\s+/g, '_')
@@ -623,6 +694,17 @@ const Contracts = () => {
                   <span>Signature du locataire</span>
                   <div className="line" />
                 </div>
+              </div>
+
+              <div className="sheet-stamp-wrap">
+                <img
+                  src={stampImage}
+                  alt="Cachet Keur Ayib"
+                  className="sheet-stamp"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
               </div>
             </div>
           )}

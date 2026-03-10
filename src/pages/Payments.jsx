@@ -4,6 +4,7 @@ import { FiPlus, FiTrash2, FiX, FiFileText, FiDownload } from 'react-icons/fi';
 import { db } from '../services/firebase';
 import jsPDF from 'jspdf';
 import logoImage from '/KA.png';
+import stampImage from '/Cahet KA-01.png';
 import './payments.css';
 
 const CONTACT_PHONE = '771762546 / 777026565';
@@ -23,6 +24,8 @@ const Payments = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const logoDataUrlRef = useRef(null);
   const logoSizeRef = useRef({ width: 0, height: 0 });
+  const stampDataUrlRef = useRef(null);
+  const stampSizeRef = useRef({ width: 0, height: 0 });
 
   const [formData, setFormData] = useState({
     propertyId: '',
@@ -69,6 +72,7 @@ const Payments = () => {
     fetchData({ preferCache: true });
     // Pré-charger le logo pour les factures
     getLogoDataUrl().catch(err => console.warn('Erreur pré-chargement logo:', err));
+    getStampDataUrl().catch(err => console.warn('Erreur pré-chargement cachet:', err));
   }, []);
 
   useEffect(() => {
@@ -252,6 +256,56 @@ const Payments = () => {
     });
   };
 
+  const getStampDataUrl = () => {
+    if (stampDataUrlRef.current) {
+      return Promise.resolve(stampDataUrlRef.current);
+    }
+
+    return new Promise((resolve) => {
+      const image = new Image();
+
+      image.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxSize = 500;
+          let width = image.naturalWidth || image.width;
+          let height = image.naturalHeight || image.height;
+
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width *= ratio;
+            height *= ratio;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+
+          if (!context) {
+            resolve(null);
+            return;
+          }
+
+          context.drawImage(image, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/png');
+          stampDataUrlRef.current = dataUrl;
+          stampSizeRef.current = { width, height };
+          resolve(dataUrl);
+        } catch (error) {
+          console.error('Erreur conversion cachet:', error);
+          resolve(null);
+        }
+      };
+
+      image.onerror = (error) => {
+        console.error('Erreur chargement cachet:', error, 'Source:', stampImage);
+        resolve(null);
+      };
+
+      image.src = stampImage;
+    });
+  };
+
   const buildInvoicePdf = async (payment) => {
     try {
       const pdf = new jsPDF();
@@ -261,6 +315,7 @@ const Payments = () => {
       const dateObj = getInvoiceDateObj(payment.datePaiement);
       const amount = Number(payment.montant || 0);
       const formattedAmount = formatInvoiceAmount(amount);
+      const pageHeight = pdf.internal.pageSize.getHeight();
 
       // Fond blanc
       pdf.setFillColor(255, 255, 255);
@@ -418,9 +473,8 @@ const Payments = () => {
       pdf.setTextColor(107, 114, 128);
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(10);
-      pdf.text('Cette facture est générée électroniquement et ne nécessite pas de signature.', 105, 216, { align: 'center' });
-      pdf.text(`Contact: ${CONTACT_PHONE}`, 105, 224, { align: 'center' });
-      pdf.text(`Email: ${CONTACT_EMAIL}`, 105, 231, { align: 'center' });
+      pdf.text(`Contact: ${CONTACT_PHONE}`, 105, 216, { align: 'center' });
+      pdf.text(`Email: ${CONTACT_EMAIL}`, 105, 223, { align: 'center' });
 
       // Notes
       if (payment.notes) {
@@ -441,6 +495,36 @@ const Payments = () => {
           pdf.setFontSize(9);
           pdf.text(splitNotes, 20, notesStartY);
         }
+      }
+
+      const stampDataUrl = await getStampDataUrl();
+      if (stampDataUrl && stampDataUrl.startsWith('data:image')) {
+        const rawWidth = stampSizeRef.current.width || 1;
+        const rawHeight = stampSizeRef.current.height || 1;
+        const maxStampWidth = 52;
+        const maxStampHeight = 38;
+        const scale = Math.min(maxStampWidth / rawWidth, maxStampHeight / rawHeight);
+        const drawWidth = rawWidth * scale;
+        const drawHeight = rawHeight * scale;
+        const stampTopY = pageHeight - drawHeight - 14;
+
+        let contentEndY = 231;
+        if (payment.notes) {
+          const splitNotes = pdf.splitTextToSize(`Notes: ${payment.notes}`, 165);
+          const notesHeight = splitNotes.length * 4;
+          contentEndY = 242 + notesHeight;
+
+          if (242 + notesHeight > 285) {
+            contentEndY = 20 + notesHeight;
+          }
+        }
+
+        if (contentEndY > stampTopY - 8) {
+          pdf.addPage();
+        }
+
+        pdf.setPage(pdf.getNumberOfPages());
+        pdf.addImage(stampDataUrl, 'PNG', 190 - drawWidth, pageHeight - drawHeight - 14, drawWidth, drawHeight);
       }
 
       const fileName = `Facture_${invoiceNumber}_${client?.nom || 'Client'}.pdf`;
@@ -911,9 +995,19 @@ const Payments = () => {
               <div className="invoice-footer-separator" />
 
               <div className="invoice-thanks">Merci pour votre confiance !</div>
-              <p className="invoice-note">Cette facture est générée électroniquement et ne nécessite pas de signature.</p>
               <p className="invoice-note">Contact: {CONTACT_PHONE}</p>
               <p className="invoice-note">Email: {CONTACT_EMAIL}</p>
+
+              <div className="invoice-stamp-wrap">
+                <img
+                  src={stampImage}
+                  alt="Cachet Keur Ayib"
+                  className="invoice-stamp"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -470,6 +470,20 @@
   font-size: 18px;
 }
 
+.invoice-stamp-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 22px;
+  padding-top: 10px;
+}
+
+.invoice-stamp {
+  width: min(180px, 42vw);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -821,6 +835,14 @@
 
   .invoice-note {
     font-size: 15px;
+  }
+
+  .invoice-stamp-wrap {
+    justify-content: center;
+  }
+
+  .invoice-stamp {
+    width: min(160px, 60vw);
   }
 
   .delete-btn {
