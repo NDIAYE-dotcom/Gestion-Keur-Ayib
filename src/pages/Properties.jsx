@@ -342,6 +342,7 @@ const Properties = () => {
           <option value="terrain">Terrain</option>
           <option value="maison">Maison</option>
           <option value="appartement">Appartement</option>
+          <option value="chambre">Chambre</option>
           <option value="magasin">Magasin</option>
         </select>
 
@@ -427,6 +428,7 @@ const Properties = () => {
                     <option value="terrain">Terrain</option>
                     <option value="maison">Maison</option>
                     <option value="appartement">Appartement</option>
+                    <option value="chambre">Chambre</option>
                     <option value="magasin">Magasin</option>
                   </select>
                 </div>
