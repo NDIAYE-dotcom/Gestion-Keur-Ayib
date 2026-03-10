@@ -9,6 +9,7 @@ import './payments.css';
 
 const CONTACT_PHONE = '771762546 / 777026565';
 const CONTACT_EMAIL = 'keurayibImmo@gmail.com';
+const RENT_PAYMENT_TYPE = 'loyer';
 const ENTRY_PAYMENT_TYPE = 'entree-location';
 const PAYMENTS_CACHE_KEY = 'keurAyib_payments_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -31,15 +32,24 @@ const Payments = () => {
     propertyId: '',
     clientId: '',
     montant: '',
-    typePaiement: 'loyer',
+    typePaiement: RENT_PAYMENT_TYPE,
     statut: 'payé',
     methodePaiement: 'espèces',
+    moisCouverts: '1',
+    moisReference: new Date().toISOString().slice(0, 7),
+    arrieresAvant: '0',
     notes: '',
   });
 
   const selectedProperty = properties.find((property) => property.id === formData.propertyId);
   const selectedPropertyPrice = Number(selectedProperty?.prix || 0);
+  const isRentPayment = formData.typePaiement === RENT_PAYMENT_TYPE;
   const isEntryPayment = formData.typePaiement === ENTRY_PAYMENT_TYPE;
+  const coveredMonths = Math.max(1, Number(formData.moisCouverts || 1));
+  const arrearsBeforePayment = Math.max(0, Number(formData.arrieresAvant || 0));
+  const arrearsPaidNow = isRentPayment ? Math.min(arrearsBeforePayment, coveredMonths) : 0;
+  const arrearsRemaining = isRentPayment ? Math.max(0, arrearsBeforePayment - arrearsPaidNow) : 0;
+  const rentTotalAmount = selectedPropertyPrice * coveredMonths;
   const entryTotalAmount = selectedPropertyPrice * 3;
 
   const readCache = () => {
@@ -76,15 +86,16 @@ const Payments = () => {
   }, []);
 
   useEffect(() => {
-    if (!isEntryPayment) {
+    if (!isEntryPayment && !isRentPayment) {
       return;
     }
 
-    const totalAsString = entryTotalAmount ? String(entryTotalAmount) : '';
+    const autoAmount = isEntryPayment ? entryTotalAmount : rentTotalAmount;
+    const totalAsString = autoAmount ? String(autoAmount) : '';
     setFormData((prev) => (
       prev.montant === totalAsString ? prev : { ...prev, montant: totalAsString }
     ));
-  }, [isEntryPayment, entryTotalAmount]);
+  }, [isEntryPayment, isRentPayment, entryTotalAmount, rentTotalAmount]);
 
   const fetchData = async ({ preferCache = false } = {}) => {
     let usedCache = false;
@@ -151,13 +162,21 @@ const Payments = () => {
 
     try {
       const isEntryType = formData.typePaiement === ENTRY_PAYMENT_TYPE;
+      const isRentType = formData.typePaiement === RENT_PAYMENT_TYPE;
       const baseAmount = Number(selectedPropertyPrice || 0);
       const advanceAmount = isEntryType ? baseAmount : 0;
       const cautionAmount = isEntryType ? baseAmount : 0;
       const commissionAmount = isEntryType ? baseAmount : 0;
+      const rentMonthsCovered = isRentType ? Math.max(1, Number(formData.moisCouverts || 1)) : 0;
+      const rentAmount = isRentType ? baseAmount * rentMonthsCovered : 0;
+      const rentArrearsBefore = isRentType ? Math.max(0, Number(formData.arrieresAvant || 0)) : 0;
+      const rentArrearsPaid = isRentType ? Math.min(rentArrearsBefore, rentMonthsCovered) : 0;
+      const rentArrearsRemaining = isRentType ? Math.max(0, rentArrearsBefore - rentArrearsPaid) : 0;
       const totalAmount = isEntryType
         ? advanceAmount + cautionAmount + commissionAmount
-        : Number(formData.montant);
+        : isRentType
+          ? Number(formData.montant || rentAmount)
+          : Number(formData.montant);
 
       const entryDetails = isEntryType ? {
         avance: advanceAmount,
@@ -166,15 +185,31 @@ const Payments = () => {
         total: totalAmount,
       } : null;
 
+      const rentDetails = isRentType ? {
+        moisCouverts: rentMonthsCovered,
+        moisReference: formData.moisReference || new Date().toISOString().slice(0, 7),
+        loyerMensuel: baseAmount,
+        montantTheorique: rentAmount,
+        arrieresAvantPaiement: rentArrearsBefore,
+        arrieresRegles: rentArrearsPaid,
+        arrieresRestants: rentArrearsRemaining,
+      } : null;
+
       const autoEntryNote = isEntryType
         ? `Entrée location: Avance ${formatInvoiceAmount(advanceAmount)}, Caution ${formatInvoiceAmount(cautionAmount)}, Commission ${formatInvoiceAmount(commissionAmount)}.`
+        : '';
+
+      const autoRentNote = isRentType
+        ? rentArrearsBefore > 0
+          ? `Arriérés: avant ${rentArrearsBefore} mois, réglés ${rentArrearsPaid} mois, restants ${rentArrearsRemaining} mois.`
+          : ''
         : '';
 
       await addDoc(collection(db, 'payments'), {
         ...formData,
         montant: totalAmount,
-        detailsPaiement: entryDetails,
-        notes: [autoEntryNote, formData.notes].filter(Boolean).join(' '),
+        detailsPaiement: isEntryType ? entryDetails : isRentType ? { loyer: rentDetails } : null,
+        notes: [autoEntryNote, autoRentNote, formData.notes].filter(Boolean).join(' '),
         datePaiement: new Date(),
       });
       alert('Paiement enregistré avec succès');
@@ -315,6 +350,15 @@ const Payments = () => {
       const dateObj = getInvoiceDateObj(payment.datePaiement);
       const amount = Number(payment.montant || 0);
       const formattedAmount = formatInvoiceAmount(amount);
+      const rentDetails = getRentDetails(payment);
+      const invoiceDesignation = property?.titre || 'Paiement immobilier';
+      const invoiceQuantity = rentDetails?.moisCouverts || 1;
+      const invoiceUnitAmount = rentDetails?.loyerMensuel || amount;
+      const invoiceLineLabel = rentDetails
+        ? `${invoiceDesignation} - Loyer (${formatMonthLabel(rentDetails.moisReference)})`
+        : payment.typePaiement === ENTRY_PAYMENT_TYPE
+          ? `${invoiceDesignation} (Entrée location)`
+          : invoiceDesignation;
       const pageHeight = pdf.internal.pageSize.getHeight();
 
       // Fond blanc
@@ -425,11 +469,11 @@ const Payments = () => {
       pdf.setTextColor(17, 24, 39);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(12);
-      pdf.text(property?.titre || 'Paiement immobilier', 28, 99);
+      pdf.text(invoiceLineLabel, 28, 99);
 
       pdf.setFont('helvetica', 'normal');
-      pdf.text('1', 90, 99, { align: 'center' });
-      pdf.text(formattedAmount, 122, 99);
+      pdf.text(String(invoiceQuantity), 90, 99, { align: 'center' });
+      pdf.text(formatInvoiceAmount(invoiceUnitAmount), 122, 99);
       pdf.setFont('helvetica', 'bold');
       pdf.text(formattedAmount, 188, 99, { align: 'right' });
 
@@ -476,27 +520,35 @@ const Payments = () => {
       pdf.text(`Contact: ${CONTACT_PHONE}`, 105, 216, { align: 'center' });
       pdf.text(`Email: ${CONTACT_EMAIL}`, 105, 223, { align: 'center' });
 
-      // Notes
-      if (payment.notes) {
-        const splitNotes = pdf.splitTextToSize(`Notes: ${payment.notes}`, 165);
-        const notesHeight = splitNotes.length * 4; // ~4 unités par ligne
-        const notesStartY = 242;
-        
-        // Si les notes dépassent la page (A4 = 297mm), ajouter une nouvelle page
-        if (notesStartY + notesHeight > 285) {
-          pdf.addPage();
+      // Arriérés (loyer) + Notes — toujours sur la page 1, tronqués si nécessaire
+      const stampAreaHeight = 50; // espace réservé pour le cachet en bas
+      const maxContentY = pageHeight - stampAreaHeight;
+      let currentY = 232;
+
+      if (rentDetails && (rentDetails.arrieresAvantPaiement > 0 || rentDetails.arrieresRestants > 0)) {
+        const rentResume = `Arriérés avant: ${rentDetails.arrieresAvantPaiement || 0} mois | Réglés: ${rentDetails.arrieresRegles || 0} mois | Restants: ${rentDetails.arrieresRestants || 0} mois`;
+        if (currentY < maxContentY) {
           pdf.setTextColor(75, 85, 99);
-          pdf.setFont('helvetica', 'normal');
+          pdf.setFont('helvetica', 'bold');
           pdf.setFontSize(9);
-          pdf.text(splitNotes, 20, 20);
-        } else {
-          pdf.setTextColor(75, 85, 99);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(9);
-          pdf.text(splitNotes, 20, notesStartY);
+          pdf.text(rentResume, 20, currentY);
+          currentY += 8;
         }
       }
 
+      if (payment.notes) {
+        const splitNotes = pdf.splitTextToSize(`Notes: ${payment.notes}`, 165);
+        pdf.setTextColor(75, 85, 99);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        for (const line of splitNotes) {
+          if (currentY >= maxContentY) break;
+          pdf.text(line, 20, currentY);
+          currentY += 4.5;
+        }
+      }
+
+      // Cachet : toujours ancré en bas de la page 1
       const stampDataUrl = await getStampDataUrl();
       if (stampDataUrl && stampDataUrl.startsWith('data:image')) {
         const rawWidth = stampSizeRef.current.width || 1;
@@ -506,24 +558,6 @@ const Payments = () => {
         const scale = Math.min(maxStampWidth / rawWidth, maxStampHeight / rawHeight);
         const drawWidth = rawWidth * scale;
         const drawHeight = rawHeight * scale;
-        const stampTopY = pageHeight - drawHeight - 14;
-
-        let contentEndY = 231;
-        if (payment.notes) {
-          const splitNotes = pdf.splitTextToSize(`Notes: ${payment.notes}`, 165);
-          const notesHeight = splitNotes.length * 4;
-          contentEndY = 242 + notesHeight;
-
-          if (242 + notesHeight > 285) {
-            contentEndY = 20 + notesHeight;
-          }
-        }
-
-        if (contentEndY > stampTopY - 8) {
-          pdf.addPage();
-        }
-
-        pdf.setPage(pdf.getNumberOfPages());
         pdf.addImage(stampDataUrl, 'PNG', 190 - drawWidth, pageHeight - drawHeight - 14, drawWidth, drawHeight);
       }
 
@@ -558,9 +592,12 @@ const Payments = () => {
       propertyId: '',
       clientId: '',
       montant: '',
-      typePaiement: 'loyer',
+      typePaiement: RENT_PAYMENT_TYPE,
       statut: 'payé',
       methodePaiement: 'espèces',
+      moisCouverts: '1',
+      moisReference: new Date().toISOString().slice(0, 7),
+      arrieresAvant: '0',
       notes: '',
     });
     setShowModal(true);
@@ -572,9 +609,12 @@ const Payments = () => {
       propertyId: '',
       clientId: '',
       montant: '',
-      typePaiement: 'loyer',
+      typePaiement: RENT_PAYMENT_TYPE,
       statut: 'payé',
       methodePaiement: 'espèces',
+      moisCouverts: '1',
+      moisReference: new Date().toISOString().slice(0, 7),
+      arrieresAvant: '0',
       notes: '',
     });
   };
@@ -605,6 +645,22 @@ const Payments = () => {
     return type;
   };
 
+  const formatMonthLabel = (monthValue) => {
+    if (!monthValue) return 'N/A';
+    const date = new Date(`${monthValue}-01T00:00:00`);
+    if (Number.isNaN(date.getTime())) return monthValue;
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  };
+
+  const getRentDetails = (payment) => {
+    if (!payment?.detailsPaiement) return null;
+    if (payment.detailsPaiement.loyer) return payment.detailsPaiement.loyer;
+    if (payment.typePaiement === RENT_PAYMENT_TYPE && payment.detailsPaiement.moisCouverts) {
+      return payment.detailsPaiement;
+    }
+    return null;
+  };
+
   const formatInvoiceAmount = (amount) => {
     const value = Number(amount || 0).toLocaleString('fr-FR').replace(/\u202f/g, ' ');
     return `${value} FCFA`;
@@ -619,6 +675,31 @@ const Payments = () => {
   const totalRevenue = filteredPayments
     .filter(p => p.statut === 'payé')
     .reduce((sum, p) => sum + (p.montant || 0), 0);
+
+  const currentOutstandingArrears = (() => {
+    const latestByClientProperty = new Map();
+
+    payments
+      .filter((payment) => payment.typePaiement === RENT_PAYMENT_TYPE)
+      .forEach((payment) => {
+        const rentDetails = getRentDetails(payment);
+        if (!rentDetails) return;
+
+        const key = `${payment.propertyId || 'none'}_${payment.clientId || 'none'}`;
+        const paymentTime = getInvoiceDateObj(payment.datePaiement).getTime();
+        const existing = latestByClientProperty.get(key);
+
+        if (!existing || paymentTime > existing.paymentTime) {
+          latestByClientProperty.set(key, {
+            paymentTime,
+            arrieresRestants: Number(rentDetails.arrieresRestants || 0),
+          });
+        }
+      });
+
+    return Array.from(latestByClientProperty.values())
+      .reduce((sum, item) => sum + Math.max(0, item.arrieresRestants), 0);
+  })();
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -665,13 +746,17 @@ const Payments = () => {
           <h3>En Attente</h3>
           <p className="stat-value">{filteredPayments.filter(p => p.statut === 'en attente').length}</p>
         </div>
+        <div className="stat-card">
+          <h3>Arriérés Restants</h3>
+          <p className="stat-value">{currentOutstandingArrears} mois</p>
+        </div>
       </div>
 
       {/* Filtres */}
       <div className="filters-section">
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="filter-select">
           <option value="all">Tous les types</option>
-          <option value="loyer">Loyer</option>
+          <option value={RENT_PAYMENT_TYPE}>Loyer</option>
           <option value={ENTRY_PAYMENT_TYPE}>Entrée location</option>
           <option value="vente">Vente</option>
           <option value="caution">Caution</option>
@@ -797,12 +882,17 @@ const Payments = () => {
                     type="number"
                     value={formData.montant}
                     onChange={(e) => setFormData({...formData, montant: e.target.value})}
-                    readOnly={isEntryPayment}
+                    readOnly={isEntryPayment || isRentPayment}
                     required
                   />
                   {isEntryPayment && (
                     <small className="payment-hint">
                       Montant calculé automatiquement: 3 mois ({formatCurrency(selectedPropertyPrice)} x 3)
+                    </small>
+                  )}
+                  {isRentPayment && (
+                    <small className="payment-hint">
+                      Montant calculé automatiquement: {coveredMonths} mois ({formatCurrency(selectedPropertyPrice)} x {coveredMonths})
                     </small>
                   )}
                 </div>
@@ -814,7 +904,7 @@ const Payments = () => {
                     onChange={(e) => setFormData({...formData, typePaiement: e.target.value})}
                     required
                   >
-                    <option value="loyer">Loyer</option>
+                    <option value={RENT_PAYMENT_TYPE}>Loyer</option>
                     <option value={ENTRY_PAYMENT_TYPE}>Entrée location (3 mois)</option>
                     <option value="vente">Vente</option>
                     <option value="caution">Caution</option>
@@ -822,6 +912,61 @@ const Payments = () => {
                   </select>
                 </div>
               </div>
+
+              {isRentPayment && (
+                <div className="entry-breakdown-card rent-breakdown-card">
+                  <p className="entry-breakdown-title">Règlement de loyer et arriérés</p>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Mois couverts par ce paiement *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formData.moisCouverts}
+                        onChange={(e) => setFormData({ ...formData, moisCouverts: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Mois de référence *</label>
+                      <input
+                        type="month"
+                        value={formData.moisReference}
+                        onChange={(e) => setFormData({ ...formData, moisReference: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Arriérés avant paiement (mois) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.arrieresAvant}
+                        onChange={(e) => setFormData({ ...formData, arrieresAvant: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="entry-breakdown-grid">
+                    <div>
+                      <span>Loyer mensuel</span>
+                      <strong>{formatCurrency(selectedPropertyPrice)}</strong>
+                    </div>
+                    <div>
+                      <span>Arriérés réglés maintenant</span>
+                      <strong>{arrearsPaidNow} mois</strong>
+                    </div>
+                    <div>
+                      <span>Arriérés restants</span>
+                      <strong>{arrearsRemaining} mois</strong>
+                    </div>
+                    <div className="entry-breakdown-total">
+                      <span>Total à encaisser</span>
+                      <strong>{formatCurrency(rentTotalAmount)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {isEntryPayment && (
                 <div className="entry-breakdown-card">
@@ -955,14 +1100,15 @@ const Payments = () => {
                   <span>
                     {getPropertyTitle(previewPayment.propertyId)}
                     {previewPayment.typePaiement === ENTRY_PAYMENT_TYPE && ' (Entrée location)'}
+                    {getRentDetails(previewPayment) && ` - Loyer (${formatMonthLabel(getRentDetails(previewPayment).moisReference)})`}
                   </span>
-                  <span>1</span>
-                  <span>{formatInvoiceAmount(previewPayment.montant)}</span>
+                  <span>{getRentDetails(previewPayment)?.moisCouverts || 1}</span>
+                  <span>{formatInvoiceAmount(getRentDetails(previewPayment)?.loyerMensuel || previewPayment.montant)}</span>
                   <strong>{formatInvoiceAmount(previewPayment.montant)}</strong>
                 </div>
               </div>
 
-              {previewPayment.detailsPaiement && (
+              {previewPayment.detailsPaiement?.avance !== undefined && (
                 <div className="entry-breakdown-card invoice-breakdown">
                   <p className="entry-breakdown-title">Répartition du paiement</p>
                   <div className="entry-breakdown-grid">
@@ -981,6 +1127,30 @@ const Payments = () => {
                     <div className="entry-breakdown-total">
                       <span>Total</span>
                       <strong>{formatInvoiceAmount(previewPayment.detailsPaiement.total)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {getRentDetails(previewPayment) && (
+                <div className="entry-breakdown-card invoice-breakdown rent-breakdown-card">
+                  <p className="entry-breakdown-title">Suivi des arriérés</p>
+                  <div className="entry-breakdown-grid">
+                    <div>
+                      <span>Mois de référence</span>
+                      <strong>{formatMonthLabel(getRentDetails(previewPayment).moisReference)}</strong>
+                    </div>
+                    <div>
+                      <span>Arriérés avant paiement</span>
+                      <strong>{getRentDetails(previewPayment).arrieresAvantPaiement || 0} mois</strong>
+                    </div>
+                    <div>
+                      <span>Arriérés réglés</span>
+                      <strong>{getRentDetails(previewPayment).arrieresRegles || 0} mois</strong>
+                    </div>
+                    <div className="entry-breakdown-total">
+                      <span>Arriérés restants</span>
+                      <strong>{getRentDetails(previewPayment).arrieresRestants || 0} mois</strong>
                     </div>
                   </div>
                 </div>

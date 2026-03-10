@@ -635,6 +635,19 @@
   background: #f0fdf4;
 }
 
+.rent-breakdown-card {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.rent-breakdown-card .entry-breakdown-title {
+  color: #1d4ed8;
+}
+
+.rent-breakdown-card .entry-breakdown-grid strong {
+  color: #1e3a8a;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;

@@ -342,6 +342,7 @@ const Properties = () => {
           <option value="terrain">Terrain</option>
           <option value="maison">Maison</option>
           <option value="appartement">Appartement</option>
+          <option value="magasin">Magasin</option>
         </select>
 
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="filter-select">
@@ -426,6 +427,7 @@ const Properties = () => {
                     <option value="terrain">Terrain</option>
                     <option value="maison">Maison</option>
                     <option value="appartement">Appartement</option>
+                    <option value="magasin">Magasin</option>
                   </select>
                 </div>
               </div>
