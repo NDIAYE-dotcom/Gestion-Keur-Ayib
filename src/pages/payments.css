@@ -65,6 +65,7 @@
   font-weight: 700;
   margin: 0;
   white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* Filtres */
@@ -83,6 +84,7 @@
   cursor: pointer;
   background: white;
   transition: border-color 0.3s;
+  min-width: 180px;
 }
 
 .filter-select:focus {

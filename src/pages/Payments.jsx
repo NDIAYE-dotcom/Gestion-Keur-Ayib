@@ -13,6 +13,22 @@ const RENT_PAYMENT_TYPE = 'loyer';
 const ENTRY_PAYMENT_TYPE = 'entree-location';
 const PAYMENTS_CACHE_KEY = 'keurAyib_payments_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MONTH_OPTIONS = [
+  { value: 'all', label: 'Tous les mois' },
+  { value: '01', label: 'Janvier' },
+  { value: '02', label: 'Février' },
+  { value: '03', label: 'Mars' },
+  { value: '04', label: 'Avril' },
+  { value: '05', label: 'Mai' },
+  { value: '06', label: 'Juin' },
+  { value: '07', label: 'Juillet' },
+  { value: '08', label: 'Août' },
+  { value: '09', label: 'Septembre' },
+  { value: '10', label: 'Octobre' },
+  { value: '11', label: 'Novembre' },
+  { value: '12', label: 'Décembre' },
+];
+const currentMonthValue = () => String(new Date().getMonth() + 1).padStart(2, '0');
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -23,6 +39,7 @@ const Payments = () => {
   const [previewPayment, setPreviewPayment] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterMonth, setFilterMonth] = useState(currentMonthValue());
   const logoDataUrlRef = useRef(null);
   const logoSizeRef = useRef({ width: 0, height: 0 });
   const stampDataUrlRef = useRef(null);
@@ -678,18 +695,29 @@ const Payments = () => {
   const filteredPayments = payments.filter(payment => {
     const matchesType = filterType === 'all' || payment.typePaiement === filterType;
     const matchesStatus = filterStatus === 'all' || payment.statut === filterStatus;
-    return matchesType && matchesStatus;
+    const paymentDate = getInvoiceDateObj(payment.datePaiement);
+    const paymentMonth = Number.isNaN(paymentDate.getTime())
+      ? ''
+      : String(paymentDate.getMonth() + 1).padStart(2, '0');
+    const matchesMonth = filterMonth === 'all' || paymentMonth === filterMonth;
+    return matchesType && matchesStatus && matchesMonth;
   });
 
-  // Filtré par type uniquement (sans le statut) pour que les cartes de
+  // Filtré par type et mois uniquement (sans le statut) pour que les cartes de
   // statistiques par statut restent correctes quel que soit le filtre statut choisi.
-  const typeFilteredPayments = payments.filter(payment =>
-    filterType === 'all' || payment.typePaiement === filterType
-  );
+  const statsPayments = payments.filter(payment => {
+    const matchesType = filterType === 'all' || payment.typePaiement === filterType;
+    const paymentDate = getInvoiceDateObj(payment.datePaiement);
+    const paymentMonth = Number.isNaN(paymentDate.getTime())
+      ? ''
+      : String(paymentDate.getMonth() + 1).padStart(2, '0');
+    const matchesMonth = filterMonth === 'all' || paymentMonth === filterMonth;
+    return matchesType && matchesMonth;
+  });
 
-  const totalRevenue = typeFilteredPayments
+  const totalRevenue = statsPayments
     .filter(p => p.statut === 'payé')
-    .reduce((sum, p) => sum + (p.montant || 0), 0);
+    .reduce((sum, p) => sum + Number(p.montant || 0), 0);
 
   const currentOutstandingArrears = (() => {
     const latestByClientProperty = new Map();
@@ -755,11 +783,11 @@ const Payments = () => {
         </div>
         <div className="stat-card">
           <h3>Paiements Reçus</h3>
-          <p className="stat-value">{typeFilteredPayments.filter(p => p.statut === 'payé').length}</p>
+          <p className="stat-value">{statsPayments.filter(p => p.statut === 'payé').length}</p>
         </div>
         <div className="stat-card">
           <h3>En Attente</h3>
-          <p className="stat-value">{typeFilteredPayments.filter(p => p.statut === 'en attente').length}</p>
+          <p className="stat-value">{statsPayments.filter(p => p.statut === 'en attente').length}</p>
         </div>
         <div className="stat-card">
           <h3>Arriérés Restants</h3>
@@ -782,6 +810,12 @@ const Payments = () => {
           <option value="all">Tous les statuts</option>
           <option value="payé">Payé</option>
           <option value="en attente">En attente</option>
+        </select>
+
+        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="filter-select">
+          {MONTH_OPTIONS.map((month) => (
+            <option key={month.value} value={month.value}>{month.label}</option>
+          ))}
         </select>
       </div>
 
