@@ -209,12 +209,6 @@ const Agenda = () => {
     });
   };
 
-  const isUpcoming = (date) => {
-    if (!date) return false;
-    const d = date.toDate ? date.toDate() : new Date(date);
-    return d >= new Date();
-  };
-
   if (loading) {
     return <div className="loading">Chargement...</div>;
   }

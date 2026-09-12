@@ -49,6 +49,10 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .page-content {
+    padding: 0;
+  }
+
   .sidebar-overlay {
     display: block;
     position: fixed;

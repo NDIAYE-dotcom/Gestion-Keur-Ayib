@@ -85,10 +85,19 @@ const Payments = () => {
     getStampDataUrl().catch(err => console.warn('Erreur pré-chargement cachet:', err));
   }, []);
 
+  const wasAutoAmountTypeRef = useRef(false);
+
   useEffect(() => {
     if (!isEntryPayment && !isRentPayment) {
+      // Efface le montant auto-calculé laissé par le type précédent pour éviter
+      // qu'un montant de loyer/entrée ne soit soumis par erreur pour un autre type.
+      if (wasAutoAmountTypeRef.current) {
+        setFormData((prev) => (prev.montant === '' ? prev : { ...prev, montant: '' }));
+      }
+      wasAutoAmountTypeRef.current = false;
       return;
     }
+    wasAutoAmountTypeRef.current = true;
 
     const autoAmount = isEntryPayment ? entryTotalAmount : rentTotalAmount;
     const totalAsString = autoAmount ? String(autoAmount) : '';
@@ -672,7 +681,13 @@ const Payments = () => {
     return matchesType && matchesStatus;
   });
 
-  const totalRevenue = filteredPayments
+  // Filtré par type uniquement (sans le statut) pour que les cartes de
+  // statistiques par statut restent correctes quel que soit le filtre statut choisi.
+  const typeFilteredPayments = payments.filter(payment =>
+    filterType === 'all' || payment.typePaiement === filterType
+  );
+
+  const totalRevenue = typeFilteredPayments
     .filter(p => p.statut === 'payé')
     .reduce((sum, p) => sum + (p.montant || 0), 0);
 
@@ -740,11 +755,11 @@ const Payments = () => {
         </div>
         <div className="stat-card">
           <h3>Paiements Reçus</h3>
-          <p className="stat-value">{filteredPayments.filter(p => p.statut === 'payé').length}</p>
+          <p className="stat-value">{typeFilteredPayments.filter(p => p.statut === 'payé').length}</p>
         </div>
         <div className="stat-card">
           <h3>En Attente</h3>
-          <p className="stat-value">{filteredPayments.filter(p => p.statut === 'en attente').length}</p>
+          <p className="stat-value">{typeFilteredPayments.filter(p => p.statut === 'en attente').length}</p>
         </div>
         <div className="stat-card">
           <h3>Arriérés Restants</h3>

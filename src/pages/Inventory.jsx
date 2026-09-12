@@ -12,7 +12,7 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [periodFilter, setPeriodFilter] = useState('monthly');
+  const [periodFilter, setPeriodFilter] = useState('all');
 
   // 📦 Cache helpers
   const readCache = () => {
@@ -95,6 +95,10 @@ const Inventory = () => {
   };
 
   const periodItems = useMemo(() => {
+    if (periodFilter === 'all') {
+      return properties;
+    }
+
     const monthsByPeriod = {
       monthly: 1,
       threeMonths: 3,
@@ -215,6 +219,7 @@ const Inventory = () => {
         </select>
 
         <select value={periodFilter} onChange={(event) => setPeriodFilter(event.target.value)}>
+          <option value="all">Toute la période</option>
           <option value="monthly">Mensuel</option>
           <option value="threeMonths">3 mois</option>
           <option value="sixMonths">6 mois</option>

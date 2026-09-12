@@ -186,6 +186,7 @@
   .sidebar {
     transform: translateX(-100%);
     width: 250px;
+    overflow-y: auto;
     transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   }
 

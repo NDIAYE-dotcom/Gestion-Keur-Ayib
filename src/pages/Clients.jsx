@@ -163,9 +163,9 @@ const Clients = () => {
   };
 
   const filteredClients = clients.filter(client =>
-    client.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.telephone.includes(searchTerm) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (client.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (client.telephone || '').includes(searchTerm) ||
+    (client.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const formatDate = (date) => {

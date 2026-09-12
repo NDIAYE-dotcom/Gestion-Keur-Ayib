@@ -258,7 +258,10 @@ const Contracts = () => {
   };
 
   const handleSaveContract = async () => {
-    const textToSave = contractText || generateContractText();
+    // Toujours régénérer à partir de la sélection courante : un texte mis en
+    // cache pourrait décrire un autre bien/client si la sélection a changé
+    // depuis le dernier clic sur "Générer les clauses".
+    const textToSave = generateContractText();
     if (!textToSave) {
       return;
     }
@@ -319,7 +322,7 @@ const Contracts = () => {
   };
 
   const handleDownloadPdf = () => {
-    const textToExport = contractText || generateContractText();
+    const textToExport = generateContractText();
     if (!textToExport) {
       return;
     }

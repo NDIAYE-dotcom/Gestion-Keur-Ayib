@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, limit } from 'firebase/firestore';
 import { FiRefreshCw, FiHome, FiUsers, FiDollarSign, FiClock, FiCalendar } from 'react-icons/fi';
 import { MdOutlineApartment } from 'react-icons/md';
 import { db } from '../services/firebase';
@@ -7,6 +7,12 @@ import './dashboard.css';
 
 const DASHBOARD_CACHE_KEY = 'keurAyib_dashboard_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const toValidDate = (value) => {
+  if (!value) return null;
+  const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -103,8 +109,8 @@ const Dashboard = () => {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const monthlyPayments = payments.filter(p => {
-        const paymentDate = p.datePaiement?.toDate();
-        return paymentDate >= firstDayOfMonth && p.statut === 'payé';
+        const paymentDate = toValidDate(p.datePaiement);
+        return paymentDate && paymentDate >= firstDayOfMonth && p.statut === 'payé';
       });
       
       const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + (p.montant || 0), 0);
@@ -112,8 +118,8 @@ const Dashboard = () => {
 
       // Compter les rendez-vous à venir
       const upcomingAppointments = appointments.filter(a => {
-        const appointmentDate = a.dateVisite?.toDate();
-        return appointmentDate >= new Date() && a.statut === 'planifié';
+        const appointmentDate = toValidDate(a.dateVisite);
+        return appointmentDate && appointmentDate >= new Date() && a.statut === 'planifié';
       }).length;
 
       setStats({
@@ -128,13 +134,13 @@ const Dashboard = () => {
 
       // Récupérer les 5 derniers biens
       const sortedProperties = properties.sort((a, b) => 
-        (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0)
+        (toValidDate(b.createdAt)?.getTime() || 0) - (toValidDate(a.createdAt)?.getTime() || 0)
       ).slice(0, 5);
       setRecentProperties(sortedProperties);
 
       // Récupérer les 5 derniers clients
       const sortedClients = clients.sort((a, b) => 
-        (b.dateInscription?.toDate() || 0) - (a.dateInscription?.toDate() || 0)
+        (toValidDate(b.dateInscription)?.getTime() || 0) - (toValidDate(a.dateInscription)?.getTime() || 0)
       ).slice(0, 5);
       setRecentClients(sortedClients);
 

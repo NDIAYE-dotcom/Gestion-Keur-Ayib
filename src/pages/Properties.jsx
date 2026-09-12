@@ -12,6 +12,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const Properties = () => {
   const [properties, setProperties] = useState([]);
+  const [bailleurs, setBailleurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [currentProperty, setCurrentProperty] = useState(null);
@@ -29,6 +30,7 @@ const Properties = () => {
     superficie: '',
     chambres: '',
     sallesDeBain: '',
+    bailleurs: [],
   });
 
   const [images, setImages] = useState([]);
@@ -38,7 +40,17 @@ const Properties = () => {
 
   useEffect(() => {
     fetchProperties({ preferCache: true });
+    fetchBailleurs();
   }, []);
+
+  const fetchBailleurs = async () => {
+    try {
+      const snapshot = await getDocs(query(collection(db, 'bailleurs'), limit(100)));
+      setBailleurs(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+    } catch (error) {
+      console.warn('Impossible de charger les bailleurs:', error);
+    }
+  };
 
   // 📦 Cache helpers
   const readCache = () => {
@@ -105,6 +117,13 @@ const Properties = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const assignedOwners = (formData.bailleurs || []).filter((owner) => owner.bailleurId);
+    const shareTotal = assignedOwners.reduce((sum, owner) => sum + Number(owner.quotePart || 0), 0);
+    if (assignedOwners.length > 0 && Math.abs(shareTotal - 100) > 0.01) {
+      alert('La répartition entre les bailleurs doit totaliser 100 %.');
+      return;
+    }
+
     setUploading(true);
     setUploadStatus('Préparation...');
 
@@ -178,6 +197,11 @@ const Properties = () => {
         superficie: Number(formData.superficie),
         chambres: Number(formData.chambres) || 0,
         sallesDeBain: Number(formData.sallesDeBain) || 0,
+        bailleurs: assignedOwners.map((owner) => ({
+          bailleurId: owner.bailleurId,
+          quotePart: Number(owner.quotePart || 0),
+          commissionPourcentage: Number(owner.commissionPourcentage || 0),
+        })),
         photos: photoURLs,
         createdBy: auth.currentUser?.uid,
         updatedAt: new Date(),
@@ -239,8 +263,13 @@ const Properties = () => {
         localisation: property.localisation,
         description: property.description,
         superficie: property.superficie,
-        chambres: property.chambres || '',
-        sallesDeBain: property.sallesDeBain || '',
+        chambres: property.chambres ?? '',
+        sallesDeBain: property.sallesDeBain ?? '',
+        bailleurs: (property.bailleurs || []).map((owner) => ({
+          bailleurId: owner.bailleurId,
+          quotePart: owner.quotePart ?? '',
+          commissionPourcentage: owner.commissionPourcentage ?? '',
+        })),
       });
       setPhotoUrl(property.photos?.[0] || '');
     } else {
@@ -255,6 +284,7 @@ const Properties = () => {
         superficie: '',
         chambres: '',
         sallesDeBain: '',
+        bailleurs: [],
       });
       setPhotoUrl('');
     }
@@ -275,6 +305,7 @@ const Properties = () => {
       superficie: '',
       chambres: '',
       sallesDeBain: '',
+      bailleurs: [],
     });
     setPhotoUrl('');
     setImages([]);
@@ -295,9 +326,34 @@ const Properties = () => {
     setImages(validFiles);
   };
 
+  const addBailleur = () => {
+    setFormData((previous) => ({
+      ...previous,
+      bailleurs: [...previous.bailleurs, { bailleurId: '', quotePart: '', commissionPourcentage: '' }],
+    }));
+  };
+
+  const updateBailleur = (index, field, value) => {
+    setFormData((previous) => ({
+      ...previous,
+      bailleurs: previous.bailleurs.map((owner, ownerIndex) => (
+        ownerIndex === index ? { ...owner, [field]: value } : owner
+      )),
+    }));
+  };
+
+  const removeBailleur = (index) => {
+    setFormData((previous) => ({
+      ...previous,
+      bailleurs: previous.bailleurs.filter((_, ownerIndex) => ownerIndex !== index),
+    }));
+  };
+
+  const getBailleurName = (id) => bailleurs.find((owner) => owner.id === id)?.nom || 'Bailleur supprimé';
+
   const filteredProperties = properties.filter(property => {
-    const matchesSearch = property.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         property.localisation.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (property.titre || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (property.localisation || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === 'all' || property.type === filterType;
     const matchesStatus = filterStatus === 'all' || property.statut === filterStatus;
     return matchesSearch && matchesType && matchesStatus;
@@ -373,7 +429,10 @@ const Properties = () => {
                 <h3>{property.titre}</h3>
                 <p className="property-type"><MdOutlineApartment /> {property.type}</p>
                 <p className="property-location"><FiMapPin /> {property.localisation}</p>
-                <p className="property-price">{formatCurrency(property.prix)}</p>
+                <p className="property-price">{formatCurrency(property.prix || 0)}</p>
+                {property.bailleurs?.length > 0 && (
+                  <p className="property-owners">Bailleurs : {property.bailleurs.map((owner) => getBailleurName(owner.bailleurId)).join(', ')}</p>
+                )}
                 
                 <div className="property-details">
                   <span><MdOutlineSquareFoot /> {property.superficie} m²</span>
@@ -451,6 +510,7 @@ const Properties = () => {
                   <label>Prix (XOF) *</label>
                   <input
                     type="number"
+                    min="0"
                     value={formData.prix}
                     onChange={(e) => setFormData({...formData, prix: e.target.value})}
                     required
@@ -473,6 +533,7 @@ const Properties = () => {
                   <label>Superficie (m²) *</label>
                   <input
                     type="number"
+                    min="0"
                     value={formData.superficie}
                     onChange={(e) => setFormData({...formData, superficie: e.target.value})}
                     required
@@ -483,6 +544,7 @@ const Properties = () => {
                   <label>Chambres</label>
                   <input
                     type="number"
+                    min="0"
                     value={formData.chambres}
                     onChange={(e) => setFormData({...formData, chambres: e.target.value})}
                   />
@@ -492,6 +554,7 @@ const Properties = () => {
                   <label>Salles de bain</label>
                   <input
                     type="number"
+                    min="0"
                     value={formData.sallesDeBain}
                     onChange={(e) => setFormData({...formData, sallesDeBain: e.target.value})}
                   />
@@ -506,6 +569,36 @@ const Properties = () => {
                   rows="4"
                   required
                 />
+              </div>
+
+              <div className="owners-form-section">
+                <div className="owners-form-heading">
+                  <div>
+                    <label>Bailleurs et commissions</label>
+                    <small>Répartissez le bien entre un ou plusieurs bailleurs. La quote-part totale doit être de 100 %.</small>
+                  </div>
+                  <button type="button" className="secondary-add-btn" onClick={addBailleur} disabled={!bailleurs.length}>
+                    <FiPlus /> Ajouter un bailleur
+                  </button>
+                </div>
+                {!bailleurs.length && <small className="owners-empty-hint">Créez d’abord les bailleurs dans « Bailleurs & états ».</small>}
+                {formData.bailleurs.map((owner, index) => (
+                  <div className="owner-assignment-row" key={`${owner.bailleurId}-${index}`}>
+                    <select value={owner.bailleurId} onChange={(e) => updateBailleur(index, 'bailleurId', e.target.value)} required>
+                      <option value="">Sélectionner un bailleur</option>
+                      {bailleurs.map((bailleur) => <option key={bailleur.id} value={bailleur.id}>{bailleur.nom}</option>)}
+                    </select>
+                    <div className="percentage-input">
+                      <input type="number" min="0" max="100" step="0.01" value={owner.quotePart} onChange={(e) => updateBailleur(index, 'quotePart', e.target.value)} placeholder="Quote-part" aria-label="Quote-part en pourcentage" required />
+                      <span aria-hidden="true">%</span>
+                    </div>
+                    <div className="percentage-input">
+                      <input type="number" min="0" max="100" step="0.01" value={owner.commissionPourcentage} onChange={(e) => updateBailleur(index, 'commissionPourcentage', e.target.value)} placeholder="Commission" aria-label="Commission en pourcentage" required />
+                      <span aria-hidden="true">%</span>
+                    </div>
+                    <button type="button" className="remove-owner-btn" onClick={() => removeBailleur(index)} aria-label="Retirer ce bailleur"><FiTrash2 /></button>
+                  </div>
+                ))}
               </div>
 
               <div className="form-group">

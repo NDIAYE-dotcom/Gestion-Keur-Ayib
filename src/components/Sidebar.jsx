@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FiBarChart2, FiHome, FiUsers, FiDollarSign, FiCalendar, FiMenu, FiX, FiPackage, FiFileText } from 'react-icons/fi';
+import { FiBarChart2, FiHome, FiUsers, FiDollarSign, FiCalendar, FiMenu, FiX, FiPackage, FiFileText, FiBriefcase } from 'react-icons/fi';
 import './sidebar.css';
 
 const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
@@ -10,6 +10,7 @@ const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
     { path: '/dashboard', icon: <FiBarChart2 />, label: 'Dashboard' },
     { path: '/properties', icon: <FiHome />, label: 'Biens Immobiliers' },
     { path: '/clients', icon: <FiUsers />, label: 'Clients' },
+    { path: '/bailleurs', icon: <FiBriefcase />, label: 'Bailleurs & états' },
     { path: '/payments', icon: <FiDollarSign />, label: 'Paiements' },
     { path: '/contracts', icon: <FiFileText />, label: 'Contrats' },
     { path: '/agenda', icon: <FiCalendar />, label: 'Agenda' },

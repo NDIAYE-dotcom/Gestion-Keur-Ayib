@@ -8,9 +8,20 @@ import './navbar.css';
 const Navbar = ({ user, onMenuToggle }) => {
   const navigate = useNavigate();
 
+  const clearCachedData = () => {
+    try {
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith('keurAyib_'))
+        .forEach((key) => localStorage.removeItem(key));
+    } catch (error) {
+      console.warn('Nettoyage du cache échoué:', error);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      clearCachedData();
       navigate('/login');
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
@@ -34,7 +45,7 @@ const Navbar = ({ user, onMenuToggle }) => {
             <span className="user-role">{user?.role || 'Agent'}</span>
           </div>
         </div>
-        <button className="logout-btn" onClick={handleLogout}>
+        <button className="logout-btn" onClick={handleLogout} aria-label="Se déconnecter" title="Se déconnecter">
           <span><FiLogOut /></span>
           Déconnexion
         </button>

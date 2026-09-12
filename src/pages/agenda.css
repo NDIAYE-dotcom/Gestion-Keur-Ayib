@@ -423,6 +423,11 @@
     gap: 15px;
   }
 
+  .agenda-header .add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .appointments-grid {
     grid-template-columns: 1fr;
   }

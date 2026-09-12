@@ -16,8 +16,50 @@ import Clients from './pages/Clients';
 import Payments from './pages/Payments';
 import Agenda from './pages/Agenda';
 import Contracts from './pages/Contracts';
+import Bailleurs from './pages/Bailleurs';
 
 import './App.css';
+
+function ProtectedRoute({ user, loading, userProfile, sidebarCollapsed, setSidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen, children }) {
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="spinner"></div>
+        <p>Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <div className="app-container">
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
+      />
+      {mobileSidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+      <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <Navbar
+          user={userProfile}
+          onMenuToggle={() => setMobileSidebarOpen((previous) => !previous)}
+        />
+        <div className="page-content">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -47,46 +89,14 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Route protégée
-  const ProtectedRoute = ({ children }) => {
-    if (loading) {
-      return (
-        <div className="app-loading">
-          <div className="spinner"></div>
-          <p>Chargement...</p>
-        </div>
-      );
-    }
-
-    if (!user) {
-      return <Navigate to="/login" replace />;
-    }
-
-    return (
-      <div className="app-container">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          setCollapsed={setSidebarCollapsed}
-          mobileOpen={mobileSidebarOpen}
-          setMobileOpen={setMobileSidebarOpen}
-        />
-        {mobileSidebarOpen && (
-          <div
-            className="sidebar-overlay"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-        )}
-        <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <Navbar
-            user={userProfile}
-            onMenuToggle={() => setMobileSidebarOpen((previous) => !previous)}
-          />
-          <div className="page-content">
-            {children}
-          </div>
-        </div>
-      </div>
-    );
+  const protectedRouteProps = {
+    user,
+    loading,
+    userProfile,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
   };
 
   if (loading) {
@@ -111,7 +121,7 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -120,7 +130,7 @@ function App() {
         <Route
           path="/properties"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Properties />
             </ProtectedRoute>
           }
@@ -129,7 +139,7 @@ function App() {
         <Route
           path="/inventory"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Inventory />
             </ProtectedRoute>
           }
@@ -138,7 +148,7 @@ function App() {
         <Route
           path="/clients"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Clients />
             </ProtectedRoute>
           }
@@ -147,8 +157,17 @@ function App() {
         <Route
           path="/payments"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Payments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/bailleurs"
+          element={
+            <ProtectedRoute {...protectedRouteProps}>
+              <Bailleurs />
             </ProtectedRoute>
           }
         />
@@ -156,7 +175,7 @@ function App() {
         <Route
           path="/agenda"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Agenda />
             </ProtectedRoute>
           }
@@ -165,7 +184,7 @@ function App() {
         <Route
           path="/contracts"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute {...protectedRouteProps}>
               <Contracts />
             </ProtectedRoute>
           }

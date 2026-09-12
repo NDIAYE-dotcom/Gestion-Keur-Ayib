@@ -189,6 +189,32 @@
   margin: 10px 0;
 }
 
+.property-owners {
+  color: #475569;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.owners-form-section {
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 15px;
+  background: #f8fbff;
+}
+
+.owners-form-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.owners-form-heading label { display: block; font-size: 14px; font-weight: 600; color: #1e3a8a; }
+.owners-form-heading small, .owners-empty-hint { color: #64748b; font-size: 12px; }
+.secondary-add-btn { border: none; border-radius: 7px; padding: 8px 10px; background: #dbeafe; color: #1d4ed8; display: inline-flex; gap: 5px; align-items: center; cursor: pointer; white-space: nowrap; }
+.secondary-add-btn:disabled { opacity: .55; cursor: not-allowed; }
+.owner-assignment-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr auto; gap: 8px; margin-top: 8px; }
+.owner-assignment-row select, .owner-assignment-row input { padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 6px; font-size: 14px; min-width: 0; }
+.percentage-input { position: relative; min-width: 0; }
+.percentage-input input { width: 100%; padding-right: 30px; }
+.percentage-input span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #475569; font-weight: 700; pointer-events: none; }
+.remove-owner-btn { border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; padding: 0 10px; cursor: pointer; }
+
 .property-details {
   display: flex;
   gap: 15px;
@@ -416,4 +442,8 @@
   .search-input {
     min-width: 100%;
   }
+
+  .owners-form-heading { flex-direction: column; }
+  .owner-assignment-row { grid-template-columns: 1fr; }
+  .remove-owner-btn { min-height: 38px; }
 }

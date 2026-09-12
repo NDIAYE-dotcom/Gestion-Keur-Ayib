@@ -69,6 +69,16 @@ service cloud.firestore {
       // Tous les utilisateurs authentifiés peuvent supprimer
       allow delete: if isAuthenticated();
     }
+
+    // Collection bailleurs - Propriétaires des biens
+    match /bailleurs/{bailleurId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    // Collection contracts - Contrats de location
+    match /contracts/{contractId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
     
     // Collection payments - Paiements
     match /payments/{paymentId} {
