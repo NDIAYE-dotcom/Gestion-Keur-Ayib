@@ -113,7 +113,7 @@ const Dashboard = () => {
         return paymentDate && paymentDate >= firstDayOfMonth && p.statut === 'payé';
       });
       
-      const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + (p.montant || 0), 0);
+      const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + Number(p.montant || 0), 0);
       const pendingPayments = payments.filter(p => p.statut === 'en attente').length;
 
       // Compter les rendez-vous à venir

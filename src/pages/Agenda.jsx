@@ -201,6 +201,7 @@ const Agenda = () => {
   const formatDate = (date) => {
     if (!date) return 'N/A';
     const d = date.toDate ? date.toDate() : new Date(date);
+    if (Number.isNaN(d.getTime())) return 'Date invalide';
     return d.toLocaleDateString('fr-FR', {
       weekday: 'long',
       year: 'numeric',
