@@ -5,7 +5,10 @@ import { db } from '../services/firebase';
 import './bailleurs.css';
 
 const initialForm = { nom: '', telephone: '', email: '', adresse: '', notes: '' };
-const currentMonth = () => new Date().toISOString().slice(0, 7);
+const currentMonth = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const monthLabel = (month) => {
   const date = new Date(`${month}-01T12:00:00`);
@@ -21,6 +24,14 @@ const addMonths = (month, amount) => {
   const [year, monthNumber] = month.split('-').map(Number);
   const date = new Date(year, monthNumber - 1 + amount, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getPropertyAssignments = (property) => {
+  if (property?.bailleurs?.length) return property.bailleurs;
+  if (property?.bailleurId) {
+    return [{ bailleurId: property.bailleurId, quotePart: 100, commissionPourcentage: property.commissionPourcentage || 0 }];
+  }
+  return [];
 };
 
 const Bailleurs = () => {
@@ -75,12 +86,13 @@ const Bailleurs = () => {
         const referenceMonth = rent?.moisReference || dateToMonth(payment.datePaiement);
         const monthlyAmount = Number(rent?.loyerMensuel || Number(payment.montant || 0) / monthsCovered);
         const property = properties.find((item) => item.id === payment.propertyId);
-        if (!property?.bailleurs?.length) return;
+        const assignments = getPropertyAssignments(property);
+        if (!assignments.length) return;
 
         Array.from({ length: monthsCovered }, (_, index) => addMonths(referenceMonth, index))
           .filter((coveredMonth) => coveredMonth === month)
           .forEach(() => {
-            property.bailleurs.forEach((assignment) => {
+            assignments.forEach((assignment) => {
               const statement = result.get(assignment.bailleurId);
               if (!statement) return;
               const gross = monthlyAmount * (Number(assignment.quotePart || 0) / 100);
@@ -104,6 +116,12 @@ const Bailleurs = () => {
       });
     return Array.from(result.values()).filter((statement) => selectedBailleur === 'all' || statement.bailleur.id === selectedBailleur);
   }, [bailleurs, clients, month, payments, properties, selectedBailleur]);
+
+  const unassignedPaidRentCount = useMemo(() => payments.filter((payment) => {
+    if (payment.statut !== 'payé' || payment.typePaiement !== 'loyer') return false;
+    const property = properties.find((item) => item.id === payment.propertyId);
+    return !getPropertyAssignments(property).length;
+  }).length, [payments, properties]);
 
   const formatCurrency = (amount) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount || 0);
   const formatPaymentDate = (date) => {
@@ -162,6 +180,7 @@ const Bailleurs = () => {
 
       <section className="monthly-section">
         <div className="monthly-heading"><div><h2>État séparé par bailleur</h2><p>Calculé uniquement sur les loyers payés du mois sélectionné.</p></div><div className="statement-filters"><input type="month" value={month} onChange={(event) => setMonth(event.target.value)} /><select value={selectedBailleur} onChange={(event) => setSelectedBailleur(event.target.value)}><option value="all">Tous les bailleurs</option>{bailleurs.map((owner) => <option key={owner.id} value={owner.id}>{owner.nom}</option>)}</select></div></div>
+        {unassignedPaidRentCount > 0 && <p className="assignment-warning">{unassignedPaidRentCount} paiement{unassignedPaidRentCount > 1 ? 's' : ''} payé{unassignedPaidRentCount > 1 ? 's' : ''} ne peut{unassignedPaidRentCount > 1 ? 'vent' : ''} pas apparaître ici : le bien concerné n'a aucun bailleur associé. Ouvrez le bien dans « Biens », ajoutez son bailleur et indiquez sa quote-part.</p>}
         <p className="month-title">État de {monthLabel(month)}</p>
         <div className="statements-grid">
           {statements.map((statement) => <article className="statement-card" key={statement.bailleur.id}>
