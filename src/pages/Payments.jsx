@@ -29,6 +29,10 @@ const MONTH_OPTIONS = [
   { value: '12', label: 'Décembre' },
 ];
 const currentMonthValue = () => String(new Date().getMonth() + 1).padStart(2, '0');
+const currentYearMonth = () => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const Payments = () => {
   const [payments, setPayments] = useState([]);
@@ -53,7 +57,7 @@ const Payments = () => {
     statut: 'payé',
     methodePaiement: 'espèces',
     moisCouverts: '1',
-    moisReference: new Date().toISOString().slice(0, 7),
+    moisReference: currentYearMonth(),
     arrieresAvant: '0',
     notes: '',
   });
@@ -144,9 +148,9 @@ const Payments = () => {
 
       // ✅ RAPIDE: Sans orderBy pour eviter les index
       const [paymentsSnapshot, propertiesSnapshot, clientsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'payments'), limit(100))),
-        getDocs(query(collection(db, 'properties'), limit(50))),
-        getDocs(query(collection(db, 'clients'), limit(50)))
+        getDocs(query(collection(db, 'payments'), limit(500))),
+        getDocs(query(collection(db, 'properties'), limit(500))),
+        getDocs(query(collection(db, 'clients'), limit(500)))
       ]);
 
       const paymentsData = paymentsSnapshot.docs.map(doc => ({
@@ -213,7 +217,7 @@ const Payments = () => {
 
       const rentDetails = isRentType ? {
         moisCouverts: rentMonthsCovered,
-        moisReference: formData.moisReference || new Date().toISOString().slice(0, 7),
+        moisReference: formData.moisReference || currentYearMonth(),
         loyerMensuel: baseAmount,
         montantTheorique: rentAmount,
         arrieresAvantPaiement: rentArrearsBefore,
@@ -622,7 +626,7 @@ const Payments = () => {
       statut: 'payé',
       methodePaiement: 'espèces',
       moisCouverts: '1',
-      moisReference: new Date().toISOString().slice(0, 7),
+      moisReference: currentYearMonth(),
       arrieresAvant: '0',
       notes: '',
     });
@@ -639,7 +643,7 @@ const Payments = () => {
       statut: 'payé',
       methodePaiement: 'espèces',
       moisCouverts: '1',
-      moisReference: new Date().toISOString().slice(0, 7),
+      moisReference: currentYearMonth(),
       arrieresAvant: '0',
       notes: '',
     });

@@ -50,10 +50,10 @@ const Bailleurs = () => {
     try {
       setLoading(true);
       const [bailleursSnapshot, propertiesSnapshot, clientsSnapshot, paymentsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'bailleurs'), limit(100))),
-        getDocs(query(collection(db, 'properties'), limit(100))),
-        getDocs(query(collection(db, 'clients'), limit(300))),
-        getDocs(query(collection(db, 'payments'), limit(300))),
+        getDocs(query(collection(db, 'bailleurs'), limit(500))),
+        getDocs(query(collection(db, 'properties'), limit(500))),
+        getDocs(query(collection(db, 'clients'), limit(500))),
+        getDocs(query(collection(db, 'payments'), limit(500))),
       ]);
       setBailleurs(bailleursSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
       setProperties(propertiesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));

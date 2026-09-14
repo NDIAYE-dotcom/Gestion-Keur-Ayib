@@ -85,10 +85,10 @@ const Dashboard = () => {
 
       // ✅ ULTRA RAPIDE : Requêtes sans orderBy (pas besoin d'index)
       const dataPromise = Promise.all([
-        getDocs(query(collection(db, 'properties'), limit(50))),
-        getDocs(query(collection(db, 'clients'), limit(50))),
-        getDocs(query(collection(db, 'payments'), limit(100))),
-        getDocs(query(collection(db, 'appointments'), limit(50)))
+        getDocs(query(collection(db, 'properties'), limit(500))),
+        getDocs(query(collection(db, 'clients'), limit(500))),
+        getDocs(query(collection(db, 'payments'), limit(500))),
+        getDocs(query(collection(db, 'appointments'), limit(500)))
       ]);
 
       const [propertiesSnapshot, clientsSnapshot, paymentsSnapshot, appointmentsSnapshot] = await Promise.race([

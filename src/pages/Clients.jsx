@@ -71,7 +71,7 @@ const Clients = () => {
       }
       // ✅ RAPIDE : Sans orderBy pour eviter les index
       const querySnapshot = await getDocs(
-        query(collection(db, 'clients'), limit(50))
+        query(collection(db, 'clients'), limit(500))
       );
       const clientsData = querySnapshot.docs.map(doc => ({
         id: doc.id,

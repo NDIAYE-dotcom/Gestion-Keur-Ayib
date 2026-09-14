@@ -6,6 +6,11 @@ import './agenda.css';
 
 const AGENDA_CACHE_KEY = 'keurAyib_agenda_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const parseDateInput = (value) => {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 
 const Agenda = () => {
   const [appointments, setAppointments] = useState([]);
@@ -76,9 +81,9 @@ const Agenda = () => {
 
       // ✅ RAPIDE: Sans orderBy pour eviter les index
       const [appointmentsSnapshot, propertiesSnapshot, clientsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'appointments'), limit(50))),
-        getDocs(query(collection(db, 'properties'), limit(50))),
-        getDocs(query(collection(db, 'clients'), limit(50)))
+        getDocs(query(collection(db, 'appointments'), limit(500))),
+        getDocs(query(collection(db, 'properties'), limit(500))),
+        getDocs(query(collection(db, 'clients'), limit(500)))
       ]);
 
       const appointmentsData = appointmentsSnapshot.docs.map(doc => ({
@@ -122,7 +127,7 @@ const Agenda = () => {
     try {
       await addDoc(collection(db, 'appointments'), {
         ...formData,
-        dateVisite: new Date(formData.dateVisite),
+        dateVisite: parseDateInput(formData.dateVisite),
         agentId: auth.currentUser?.uid,
       });
       alert('Rendez-vous planifié avec succès');

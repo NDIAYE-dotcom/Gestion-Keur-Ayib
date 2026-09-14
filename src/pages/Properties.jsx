@@ -97,7 +97,7 @@ const Properties = () => {
       }
       // ✅ RAPIDE : Sans orderBy pour eviter les index
       const querySnapshot = await getDocs(
-        query(collection(db, 'properties'), limit(50))
+        query(collection(db, 'properties'), limit(500))
       );
       const propertiesData = querySnapshot.docs.map(doc => ({
         id: doc.id,

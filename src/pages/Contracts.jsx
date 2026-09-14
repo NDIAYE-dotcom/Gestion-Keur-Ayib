@@ -12,6 +12,11 @@ const CONTACT_PHONE = '77 176 25 46 / 77 702 65 65';
 const CONTACT_EMAIL = 'keurayibImmo@gmail.com';
 const CONTRACTS_CACHE_KEY = 'keurAyib_contracts_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const parseDateInput = (value) => {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
 
 const Contracts = () => {
   const [properties, setProperties] = useState([]);
@@ -171,8 +176,8 @@ const Contracts = () => {
         setLoading(true);
       }
       const [propertiesSnapshot, clientsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'properties'), limit(100))),
-        getDocs(query(collection(db, 'clients'), limit(100))),
+        getDocs(query(collection(db, 'properties'), limit(500))),
+        getDocs(query(collection(db, 'clients'), limit(500))),
       ]);
 
       const propertiesData = propertiesSnapshot.docs.map((item) => ({
@@ -275,8 +280,8 @@ const Contracts = () => {
         propertyTitle: selectedProperty?.titre || '',
         clientId: formData.clientId,
         clientName: selectedClient?.nom || '',
-        dateSignature: formData.dateSignature ? new Date(formData.dateSignature) : new Date(),
-        dateDebut: formData.dateDebut ? new Date(formData.dateDebut) : null,
+        dateSignature: parseDateInput(formData.dateSignature) || new Date(),
+        dateDebut: parseDateInput(formData.dateDebut),
         dureeMois: Number(formData.dureeMois),
         loyerMensuel: monthlyRent,
         entreeLocation: {
@@ -308,7 +313,7 @@ const Contracts = () => {
           total: entryTotal,
         },
         notes: [autoEntryNote, formData.notes].filter(Boolean).join(' - '),
-        datePaiement: formData.dateSignature ? new Date(formData.dateSignature) : new Date(),
+        datePaiement: parseDateInput(formData.dateSignature) || new Date(),
         contractId: contractRef.id,
       });
 

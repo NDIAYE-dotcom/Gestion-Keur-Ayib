@@ -57,7 +57,7 @@ const Inventory = () => {
       if (!usedCache) {
         setLoading(true);
       }
-      const snapshot = await getDocs(query(collection(db, 'properties'), limit(200)));
+      const snapshot = await getDocs(query(collection(db, 'properties'), limit(500)));
       const data = snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }));
       setProperties(data);
       writeCache(data);
