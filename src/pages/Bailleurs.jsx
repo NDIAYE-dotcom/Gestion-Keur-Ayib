@@ -26,6 +26,7 @@ const addMonths = (month, amount) => {
 const Bailleurs = () => {
   const [bailleurs, setBailleurs] = useState([]);
   const [properties, setProperties] = useState([]);
+  const [clients, setClients] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(currentMonth());
@@ -37,13 +38,15 @@ const Bailleurs = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [bailleursSnapshot, propertiesSnapshot, paymentsSnapshot] = await Promise.all([
+      const [bailleursSnapshot, propertiesSnapshot, clientsSnapshot, paymentsSnapshot] = await Promise.all([
         getDocs(query(collection(db, 'bailleurs'), limit(100))),
         getDocs(query(collection(db, 'properties'), limit(100))),
+        getDocs(query(collection(db, 'clients'), limit(300))),
         getDocs(query(collection(db, 'payments'), limit(300))),
       ]);
       setBailleurs(bailleursSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
       setProperties(propertiesSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+      setClients(clientsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
       setPayments(paymentsSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     } catch (error) {
       console.error('Erreur chargement bailleurs:', error);
@@ -86,6 +89,9 @@ const Bailleurs = () => {
               statement.commission += commission;
               statement.netAVerser += gross - commission;
               statement.lines.push({
+                clientName: clients.find((client) => client.id === payment.clientId)?.nom || 'Locataire non renseigné',
+                paymentDate: payment.datePaiement,
+                paymentMethod: payment.methodePaiement || 'Méthode non renseignée',
                 propertyTitle: property.titre || 'Bien sans titre',
                 quotePart: Number(assignment.quotePart || 0),
                 commissionRate: Number(assignment.commissionPourcentage || 0),
@@ -97,9 +103,13 @@ const Bailleurs = () => {
           });
       });
     return Array.from(result.values()).filter((statement) => selectedBailleur === 'all' || statement.bailleur.id === selectedBailleur);
-  }, [bailleurs, month, payments, properties, selectedBailleur]);
+  }, [bailleurs, clients, month, payments, properties, selectedBailleur]);
 
   const formatCurrency = (amount) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(amount || 0);
+  const formatPaymentDate = (date) => {
+    const value = date?.toDate ? date.toDate() : new Date(date);
+    return Number.isNaN(value.getTime()) ? 'Date non renseignée' : value.toLocaleDateString('fr-FR');
+  };
 
   const openModal = (bailleur = null) => {
     setEditingBailleur(bailleur);
@@ -156,7 +166,7 @@ const Bailleurs = () => {
         <div className="statements-grid">
           {statements.map((statement) => <article className="statement-card" key={statement.bailleur.id}>
             <header><div><FiFileText /><h3>{statement.bailleur.nom}</h3></div><span>{statement.lines.length} ligne{statement.lines.length > 1 ? 's' : ''}</span></header>
-            {statement.lines.length ? <div className="statement-lines">{statement.lines.map((line, index) => <div className="statement-line" key={`${line.propertyTitle}-${index}`}><div><strong>{line.propertyTitle}</strong><small>Part {line.quotePart} % · Commission {line.commissionRate} %</small></div><strong>{formatCurrency(line.net)}</strong></div>)}</div> : <p className="no-statement">Aucun loyer payé pour ce mois.</p>}
+            {statement.lines.length ? <div className="statement-lines">{statement.lines.map((line, index) => <div className="statement-line" key={`${line.propertyTitle}-${line.clientName}-${index}`}><div><strong>{line.clientName}</strong><span>{line.propertyTitle}</span><small>Paiement du {formatPaymentDate(line.paymentDate)} · {line.paymentMethod}</small><small>Part {line.quotePart} % · Commission {line.commissionRate} %</small></div><strong>{formatCurrency(line.net)}</strong></div>)}</div> : <p className="no-statement">Aucun loyer payé pour ce mois.</p>}
             <footer><div><span>Encaissement brut</span><strong>{formatCurrency(statement.encaissementBrut)}</strong></div><div><span>Commission agence</span><strong className="commission-value">-{formatCurrency(statement.commission)}</strong></div><div className="net-total"><span>Net à verser</span><strong>{formatCurrency(statement.netAVerser)}</strong></div></footer>
           </article>)}
         </div>
